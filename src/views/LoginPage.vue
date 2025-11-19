@@ -12,14 +12,15 @@
       </h1>
       <p class="text-gray-500 text-sm mb-8">
         Continue your journey toward clarity and recovery.  
-        Sign in to track progress, reflections, and emotional balance.
+        Sign in to track progress and emotional balance.
       </p>
 
       <!-- FORM -->
-      <form class="space-y-4">
+      <form class="space-y-4" @submit.prevent="handleSignIn">
         <div class="text-left">
           <label class="text-sm text-gray-600">Email</label>
           <input
+            v-model="email"
             type="email"
             placeholder="you@example.com"
             class="w-full mt-1 px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none"
@@ -29,14 +30,26 @@
         <div class="text-left">
           <label class="text-sm text-gray-600">Password</label>
           <input
+            v-model="password"
             type="password"
             placeholder="••••••••"
             class="w-full mt-1 px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none"
           />
         </div>
 
+        <!-- RESET PASSWORD LINK -->
+        <div class="text-right">
+          <button
+            type="button"
+            @click="handleResetPassword"
+            class="text-sm text-indigo-600 hover:underline"
+          >
+            Forgot password?
+          </button>
+        </div>
+
         <Button
-         @click.prevent="handleLogin"
+          type="submit"
           class="bg-indigo-600 hover:bg-indigo-700 text-white w-full py-3 rounded-lg text-lg font-semibold transition-all shadow-md hover:shadow-lg"
         >
           Sign In
@@ -54,17 +67,50 @@
 </template>
 
 <script setup>
-import Button from '@/components/Button.vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import Button from '@/components/Button.vue'
+import { supabase } from '@/lib/supabase'
+import { useUI } from '@/store/ui'
+import { useAuth } from '@/store/auth'
 
 const router = useRouter()
 
-const handleLogin = () => {
-  // Simpan token dummy (misal saja)
-  localStorage.setItem('auth', 'true')
+const email = ref('')
+const password = ref('')
 
-  // Arahkan ke dashboard
-  router.push('/dashboard')
+const { signIn } = useAuth()
+const { startLoading, stopLoading } = useUI()
+
+// LOGIN
+const handleSignIn = async () => {
+  try {
+    startLoading()
+    await signIn(email.value, password.value)
+    router.push('/dashboard')
+  } catch (error) {
+    alert(error.message)
+  } finally {
+    stopLoading()
+  }
 }
-</script>
 
+// RESET PASSWORD
+const handleResetPassword = async () => {
+  if (!email.value) {
+    alert("Please enter your email first.")
+    return
+  }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email.value, {
+    redirectTo: `${window.location.origin}/reset-password`
+  })
+
+  if (error) {
+    alert(error.message)
+  } else {
+    alert("A password reset link has been sent to your email.")
+  }
+}
+
+</script>

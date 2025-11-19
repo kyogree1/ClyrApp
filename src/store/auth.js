@@ -1,26 +1,40 @@
-import { reactive } from 'vue'
+import { reactive } from "vue"
+import { supabase } from "@/lib/supabase"
 
 const state = reactive({
-  user: JSON.parse(localStorage.getItem('r30_user') || 'null')
+  user: null,
+  ready: false,
 })
 
 export function useAuth() {
-  function signIn(email, password) {
-    state.user = { email, displayName: email.split('@')[0] }
-    localStorage.setItem('r30_user', JSON.stringify(state.user))
+
+  // 🚀 Load session sekali di awal
+  async function loadUser() {
+    if (state.ready) return
+
+    const { data } = await supabase.auth.getUser()
+    state.user = data?.user || null
+    state.ready = true
+  }
+
+  // 🚀 Supabase realtime auth listener
+  supabase.auth.onAuthStateChange((event, session) => {
+    state.user = session?.user || null
+  })
+
+  async function signIn(email, password) {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    if (error) throw error
     return true
   }
 
-  function signUp(email, password, displayName) {
-    state.user = { email, displayName }
-    localStorage.setItem('r30_user', JSON.stringify(state.user))
-    return true
-  }
-
-  function signOut() {
+  async function signOut() {
+    await supabase.auth.signOut()
     state.user = null
-    localStorage.removeItem('r30_user')
   }
 
-  return { state, signIn, signUp, signOut }
+  return { state, loadUser, signIn, signOut }
 }

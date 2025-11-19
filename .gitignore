@@ -1,24 +1,56 @@
-# Logs
-logs
-*.log
+# --- Node Dependencies ---
+node_modules/
+
+# --- Build outputs ---
+dist/
+build/
+
+# --- Local environment variables ---
+.env
+.env.*
+!.env.example
+
+# --- Vite cache ---
+.vite/
+.vite-ssr/
+vite.config.timestamp-*
+
+# --- Editor / System Files ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Logs ---
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
+*.log
 
-node_modules
-dist
-dist-ssr
-*.local
+# --- Test coverage ---
+coverage/
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# --- Typescript build info (if using TS later) ---
+*.tsbuildinfo
+
+# --- Optional lock files (uncomment if you do not want to commit them) ---
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# --- Supabase config (if you add supabase folder) ---
+supabase/.temp/
+supabase/.branches/
+supabase/.env
+supabase/functions/**/node_modules/
+supabase/config.toml
+
+# --- Temp files ---
+temp/
+tmp/
+*.tmp
+*.cache
+
+# --- OS generated files ---
+ehthumbs.db
+Icon?

@@ -104,7 +104,7 @@
               <Button
                 class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-lg shadow-md hover:shadow-xl font-semibold transition-all"
               >
-                Save Reflection
+                Check in
               </Button>
             </CardContent>
           </Card>
