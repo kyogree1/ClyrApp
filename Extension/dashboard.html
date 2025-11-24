@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Web Activity Tracker</title>
+  <link rel="stylesheet" href="dashboard.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="main">
+    <div class="header">
+      <div class="today-label">Today</div>
+      <div class="total-time" id="totalTime">0 m 00 s</div>
+
+      <button id="resetBtn" class="reset-button">
+        Reset All Tracking
+      </button>
+
+
+      <div class="sort">
+        <label>Sort</label>
+        <select id="sortBy">
+          <option value="time">Time</option>
+          <option value="sessions">Sessions</option>
+          <option value="name">Name</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="siteList"></div>
+
+    <div id="emptyHint" style="display:none;">
+      No data yet. Open a website to start tracking.
+    </div>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

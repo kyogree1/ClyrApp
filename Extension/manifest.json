@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Clyr APP",
+  "version": "1.0",
+  "permissions": ["tabs", "storage", "activeTab", "alarms"],
+
+  "action": {
+    "default_popup": "dashboard.html"
+  },
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "externally_connectable": {
+    "matches": ["http://localhost:5173/*", "https://localhost:5173/*"]
+  },
+
+    "host_permissions": ["<all_urls>"]
+  }
