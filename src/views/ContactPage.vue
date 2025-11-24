@@ -163,8 +163,8 @@
       </section>
 
       <!-- Footer -->
-      <Footer />
-    </main>
+      </main>
+    <Footer />
   </div>
 </template>
 

@@ -56,7 +56,6 @@ const password = ref('')
 
 const handleSignup = async () => {
   try {
-    startLoading()
 
     const { data, error } = await supabase.auth.signUp({
       email: email.value,
