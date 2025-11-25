@@ -86,14 +86,20 @@ const { startLoading, stopLoading } = useUI()
 const handleSignIn = async () => {
   try {
     startLoading()
-    await signIn(email.value, password.value)
+
+    const result = await signIn(email.value, password.value)
+
+    console.log("HASIL LOGIN:", result)
+
     router.push('/dashboard')
+
   } catch (error) {
     alert(error.message)
   } finally {
     stopLoading()
   }
 }
+
 
 // RESET PASSWORD
 const handleResetPassword = async () => {
@@ -112,5 +118,4 @@ const handleResetPassword = async () => {
     alert("A password reset link has been sent to your email.")
   }
 }
-
 </script>
