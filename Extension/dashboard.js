@@ -8,18 +8,20 @@ const $ = (id) => document.getElementById(id);
 const pad2 = (n) => n.toString().padStart(2,"0");
 const fmt = (sec) => `${Math.floor(sec/60)} m ${pad2(sec%60)} s`;
 
+// Ambil data mentah dari storage
 async function loadAll(){
   const d = await chrome.storage.local.get([USAGE_KEY, STATE_KEY]);
   usage = d[USAGE_KEY] || {};
   state = d[STATE_KEY] || { domain:null, start:null };
-  render();
 }
 
+// Hitung snapshot untuk tampilan (usage + delta realtime)
 function snapshot(){
   const snap = {};
 
-  for(const [domain, obj] of Object.entries(usage)){
-    if(!obj) continue;
+  // clone usage
+  for (const [domain, obj] of Object.entries(usage)) {
+    if (!obj) continue;
 
     const seconds = Math.max(0, Math.floor(obj.seconds || 0));
     const sessions = obj.sessions || 0;
@@ -29,14 +31,15 @@ function snapshot(){
     }
   }
 
-  // Tambah waktu realtime untuk domain aktif
-  if(state.domain && state.start){
+  // Tambah waktu realtime untuk domain aktif (UI only)
+  if (state.domain && state.start) {
     const delta = Math.floor((Date.now() - state.start) / 1000);
-    if(delta > 0){
-      if(!snap[state.domain]) snap[state.domain] = { seconds: 0, sessions: 0 };
+    if (delta > 0) {
+      if (!snap[state.domain]) snap[state.domain] = { seconds: 0, sessions: 0 };
       snap[state.domain].seconds += delta;
     }
   }
+
   return snap;
 }
 
@@ -46,7 +49,7 @@ function render(){
   const sortBy = $("sortBy").value;
 
   const domains = Object.entries(snap);
-  if(domains.length === 0){
+  if (domains.length === 0) {
     container.innerHTML = "";
     $("emptyHint").style.display = "block";
     $("totalTime").textContent = "0 m 00 s";
@@ -59,9 +62,9 @@ function render(){
   $("totalTime").textContent = fmt(totalSec);
 
   // Sorting
-  if(sortBy === "time") domains.sort((a,b)=>b[1].seconds - a[1].seconds);
-  else if(sortBy === "sessions") domains.sort((a,b)=>b[1].sessions - a[1].sessions);
-  else if(sortBy === "name") domains.sort((a,b)=>a[0].localeCompare(b[0]));
+  if (sortBy === "time") domains.sort((a,b)=>b[1].seconds - a[1].seconds);
+  else if (sortBy === "sessions") domains.sort((a,b)=>b[1].sessions - a[1].sessions);
+  else if (sortBy === "name") domains.sort((a,b)=>a[0].localeCompare(b[0]));
 
   const safeTotal = totalSec || 1;
 
@@ -87,9 +90,13 @@ function render(){
   }).join("");
 }
 
-// Update realtime setiap 1 detik
-setInterval(render, 1000);
+// Update realtime tiap 1 detik (untuk UI, bukan nambah waktu ke storage)
+setInterval(async () => {
+  await loadAll();
+  render();
+}, 1000);
 
+// Storage berubah dari background → refresh UI
 chrome.storage.onChanged.addListener((chg,area)=>{
   if(area !== "local") return;
 
@@ -99,32 +106,23 @@ chrome.storage.onChanged.addListener((chg,area)=>{
   render();
 });
 
-document.addEventListener("DOMContentLoaded", ()=>{
+document.addEventListener("DOMContentLoaded", async ()=>{
   $("sortBy").addEventListener("change", render);
-  loadAll();
-  
+  await loadAll();
+  render();
+
   $("resetBtn").addEventListener("click", () => {
-  if (!confirm("Reset all website usage data?")) return;
+    if (!confirm("Reset all website usage data?")) return;
 
-  chrome.runtime.sendMessage(
-    { type: "RESET_USAGE" }, 
-    async (res) => {
-      console.log("Reset response:", res);
-
-      // Hapus tracking state di storage
-      await chrome.storage.local.set({
-        usage: {},
-        currentState: { domain: null, start: null }
-      });
-
-      // Reset variabel lokal popup
-      usage = {};
-      state = { domain: null, start: null };
-
-      render();
-      alert("Usage data has been reset.");
-    }
-  );
-});
-
+    chrome.runtime.sendMessage(
+      { type: "RESET_USAGE" },
+      (res) => {
+        console.log("Reset response:", res);
+        usage = {};
+        state = { domain: null, start: null };
+        render();
+        alert("Usage data has been reset.");
+      }
+    );
+  });
 });

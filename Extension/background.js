@@ -28,7 +28,6 @@ const NEGATIVE_DOMAINS = [
 ============================================================ */
 
 let current = { domain: null, start: null };
-let tickTimer = null;
 
 /* ============================================================
    HELPERS
@@ -45,7 +44,8 @@ function getDomain(url) {
 }
 
 async function loadUsage() {
-  return (await chrome.storage.local.get(USAGE_KEY))[USAGE_KEY] || {};
+  const data = await chrome.storage.local.get(USAGE_KEY);
+  return data[USAGE_KEY] || {};
 }
 
 async function saveUsage(data) {
@@ -92,79 +92,49 @@ async function sendToSupabase(domain, seconds) {
 }
 
 /* ============================================================
-   DASHBOARD TIMER  (untuk UI & Supabase)
-============================================================ */
-
-// Dipanggil tiap 1 detik saat ada domain aktif
-async function tick() {
-  if (!current.domain || !current.start) return;
-
-  const now = Date.now();
-  const delta = Math.floor((now - current.start) / 1000);
-  if (delta <= 0) return;          // kurang dari 1 detik, skip
-
-  // geser start ke "sekarang"
-  current.start = now;
-
-  // Update usage untuk dashboard
-  const usage = await loadUsage();
-  if (!usage[current.domain]) {
-    usage[current.domain] = { seconds: 0, sessions: 0 };
-  }
-  usage[current.domain].seconds += delta;
-
-  await saveUsage(usage);
-  await saveState();
-
-  // Kirim ke Supabase per detik untuk domain negatif
-  if (NEGATIVE_DOMAINS.includes(current.domain)) {
-    await sendToSupabase(current.domain, delta);  // biasanya delta = 1
-  }
-}
-
-function startTicker() {
-  if (!tickTimer) {
-    tickTimer = setInterval(() => {
-      // fire and forget
-      tick();
-    }, 1000);
-  }
-}
-
-function stopTicker() {
-  if (tickTimer) clearInterval(tickTimer);
-  tickTimer = null;
-}
-
-/* ============================================================
-   DOMAIN TRACKING (FINAL FIX)
+   DOMAIN TRACKING (SOURCE OF TRUTH)
+   - Hitung durasi domain lama
+   - Update usage
+   - Kirim ke Supabase utk NEGATIVE_DOMAINS
+   - Set current domain baru
 ============================================================ */
 
 async function setActiveDomain(newDomain) {
-    const oldDomain = current.domain;
-    const oldStart = current.start;
+  const now = Date.now();
+  const oldDomain = current.domain;
+  const oldStart = current.start;
 
-    // STEP 1: kirim durasi domain sebelumnya
-    if (oldDomain && oldStart) {
-        const elapsed = Math.floor((Date.now() - oldStart) / 1000);
+  // 1) Hitung durasi domain sebelumnya
+  if (oldDomain && oldStart) {
+    const elapsed = Math.floor((now - oldStart) / 1000);
 
-        // Kirim ke Supabase hanya untuk NEGATIVE DOMAIN dengan minimal 5 detik
-        if (elapsed >= 5 && NEGATIVE_DOMAINS.includes(oldDomain)) {
-            console.log(`➡️ SEND: ${oldDomain} = ${elapsed}s`);
-            await sendToSupabase(oldDomain, elapsed);
-        }
+    if (elapsed > 0) {
+      // Update usage di storage (untuk dashboard)
+      const usage = await loadUsage();
+      if (!usage[oldDomain]) {
+        usage[oldDomain] = { seconds: 0, sessions: 0 };
+      }
+      usage[oldDomain].seconds += elapsed;
+      usage[oldDomain].sessions += 1;
+      await saveUsage(usage);
+
+      // Kirim ke Supabase hanya untuk domain negatif (opsional min 5 detik)
+      if (elapsed >= 5 && NEGATIVE_DOMAINS.includes(oldDomain)) {
+        await sendToSupabase(oldDomain, elapsed);
+      }
     }
+  }
 
-    // STEP 2: update domain baru
-    if (newDomain) {
-        current.domain = newDomain;
-        current.start = Date.now();
-    } else {
-        current.domain = null;
-        current.start = null;
-    }
+  // 2) Set domain baru
+  if (newDomain) {
+    current.domain = newDomain;
+    current.start = now;
+  } else {
+    current.domain = null;
+    current.start = null;
+  }
 
-    await chrome.storage.local.set({ currentState: current });
+  await saveState();
 }
 
 /* ============================================================
@@ -172,25 +142,30 @@ async function setActiveDomain(newDomain) {
 ============================================================ */
 
 chrome.tabs.onActivated.addListener(async (info) => {
-    const tab = await chrome.tabs.get(info.tabId).catch(() => null);
-    const domain = tab ? getDomain(tab.url) : null;
-    await setActiveDomain(domain);
+  const tab = await chrome.tabs.get(info.tabId).catch(() => null);
+  const domain = tab ? getDomain(tab.url) : null;
+  await setActiveDomain(domain);
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
-    if (tab.active && change.url) {
-        const domain = getDomain(change.url);
-        await setActiveDomain(domain);
-    }
+  if (tab.active && change.url) {
+    const domain = getDomain(change.url);
+    await setActiveDomain(domain);
+  }
 });
 
 chrome.windows.onFocusChanged.addListener(async (windowId) => {
-    if (windowId === chrome.windows.WINDOW_ID_NONE) {
-        await setActiveDomain(null);
-        return;
-    }
-    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    await setActiveDomain(tab ? getDomain(tab.url) : null);
+  if (windowId === chrome.windows.WINDOW_ID_NONE) {
+    // Jangan reset usage di sini, cukup stop tracking waktu realtime
+    await setActiveDomain(null);
+    return;
+  }
+
+  const [tab] = await chrome.tabs.query({
+    active: true,
+    lastFocusedWindow: true,
+  });
+  await setActiveDomain(tab ? getDomain(tab.url) : null);
 });
 
 /* ============================================================
@@ -215,9 +190,8 @@ chrome.runtime.onStartup.addListener(init);
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "RESET_USAGE") {
-    chrome.storage.local.set({ usage: {} }, () => {
+    chrome.storage.local.set({ [USAGE_KEY]: {}, [STATE_KEY]: { domain: null, start: null } }, () => {
       current = { domain: null, start: null };
-      stopTicker();
       console.log("🔥 Usage reset");
       sendResponse({ ok: true });
     });
