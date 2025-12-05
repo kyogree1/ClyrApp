@@ -1,0 +1,14 @@
+# --- Porn Blocklist (core minimal) ---
+pornhub.com
+xvideos.com
+xnxx.com
+redtube.com
+youporn.com
+brazzers.com
+hqporner.com
+spankbang.com
+tube8.com
+youjizz.com
+
+# --- Testing Only ---
+if.itk.ac.id
