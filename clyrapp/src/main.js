@@ -1,4 +1,3 @@
-// src/main.js
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
@@ -7,8 +6,8 @@ import { useAuth } from '@/store/auth'
 
 const app = createApp(App)
 
-const { loadUser } = useAuth()
-loadUser()
+const auth = useAuth()
+await auth.init()     // 🔥 WAJIB — TUNGGU SUPABASE SIAP
 
 app.use(router)
 app.component('Toaster', Toaster)

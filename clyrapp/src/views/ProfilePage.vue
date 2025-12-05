@@ -23,7 +23,7 @@
             <Button
               variant="outline"
               class="w-full border-indigo-300 text-indigo-600 hover:bg-indigo-50"
-              @click="editProfile = true"
+              @click="router.push('/profile/edit')"
             >
               <Edit class="h-4 w-4 mr-2" /> Edit Profile
             </Button>
@@ -152,8 +152,10 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { supabase } from '@/lib/supabase'
+
 import {
   User,
   Edit,
@@ -172,21 +174,25 @@ import CardHeader from '@/components/CardHeader.vue'
 import CardTitle from '@/components/CardTitle.vue'
 import CardContent from '@/components/CardContent.vue'
 import Progress from '@/components/Progress.vue'
-import Dialog from '@/components/Dialog.vue'
-import DialogContent from '@/components/DialogContent.vue'
-import DialogHeader from '@/components/DialogHeader.vue'
-import DialogTitle from '@/components/DialogTitle.vue'
-import DialogFooter from '@/components/DialogFooter.vue'
 import Input from '@/components/Input.vue'
 import Label from '@/components/Label.vue'
 
 const router = useRouter()
 
+// 👇 wajib, biar tidak undefined
+const loading = ref(true)
+
+// 👇 wajib, karena dipakai di template
+const editProfile = ref(false)
 const user = reactive({
-  name: 'Muhammad Azka Yunastio',
-  email: 'azka@example.com',
-  joined: 'January 2025'
+  name: '',
+  email: '',
+  joined: '',
+  avatar_url: ''
 })
+
+// 👇 agar dialog lama tidak error
+const tempUser = reactive({ ...user })
 
 const stats = reactive({
   cleanDays: 14,
@@ -201,12 +207,26 @@ const habits = ref([
   'Light exercise'
 ])
 
-const editProfile = ref(false)
-const tempUser = reactive({ ...user })
+onMounted(async () => {
+  const { data: { user: authUser }} = await supabase.auth.getUser()
 
-function saveProfile() {
-  user.name = tempUser.name
-  user.email = tempUser.email
-  editProfile.value = false
-}
+  if (!authUser) {
+    router.push('/login')
+    return
+  }
+
+  user.email = authUser.email
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', authUser.id)
+    .single()
+
+  user.name = profile?.full_name || ''
+  user.joined = profile?.joined || authUser.created_at.split("T")[0]
+  user.avatar_url = profile?.avatar_url || ''
+
+  loading.value = false
+})
 </script>

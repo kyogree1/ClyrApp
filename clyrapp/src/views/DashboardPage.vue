@@ -22,32 +22,38 @@
                   <div class="p-2 bg-green-500 rounded-lg"><CheckCircle2 class="h-5 w-5 text-white" /></div>
                   <div class="text-green-700 font-medium">Days Completed</div>
                 </div>
-                <div class="text-3xl text-green-700 mt-2 font-semibold">12</div>
+                <div class="text-3xl text-green-700 mt-2 font-semibold">{{ daysCompleted }}</div>
                 <p class="text-green-600 text-sm mt-1">Streaks maintained</p>
               </CardContent>
             </Card>
 
-            <Card class="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 shadow-md hover:shadow-lg transition-all">
+            <Card class="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 shadow-md hover:shadow-lg transition-all">
               <CardContent class="pt-6">
                 <div class="flex items-center gap-3 mb-2">
-                  <div class="p-2 bg-blue-500 rounded-lg"><XCircle class="h-5 w-5 text-white" /></div>
-                  <div class="text-blue-700 font-medium">Pending Goals</div>
+                  <div class="p-2 bg-purple-500 rounded-lg">
+                    <span class="text-white font-bold text-lg">😊</span>
+                  </div>
+                  <div class="text-purple-700 font-medium">Avg Mood (7 Days)</div>
                 </div>
-                <div class="text-3xl text-blue-700 mt-2 font-semibold">3</div>
-                <p class="text-blue-600 text-sm mt-1">Tasks left to complete</p>
+                <div class="text-3xl text-purple-700 mt-2 font-semibold">{{ avgMood }}</div>
+                <p class="text-purple-600 text-sm mt-1">Your emotional trend this week</p>
               </CardContent>
             </Card>
 
-            <Card class="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 shadow-md hover:shadow-lg transition-all">
+
+            <Card class="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200 shadow-md hover:shadow-lg transition-all">
               <CardContent class="pt-6">
                 <div class="flex items-center gap-3 mb-2">
-                  <div class="p-2 bg-orange-500 rounded-lg"><Calendar class="h-5 w-5 text-white" /></div>
-                  <div class="text-orange-700 font-medium">Milestones</div>
+                  <div class="p-2 bg-yellow-500 rounded-lg">
+                    <span class="text-white font-bold text-lg">🔥</span>
+                  </div>
+                  <div class="text-yellow-700 font-medium">Current Streak</div>
                 </div>
-                <div class="text-3xl text-orange-700 mt-2 font-semibold">5</div>
-                <p class="text-orange-600 text-sm mt-1">Achieved so far</p>
+                <div class="text-3xl text-yellow-700 mt-2 font-semibold">{{ streak }}</div>
+                <p class="text-yellow-600 text-sm mt-1">Keep the momentum!</p>
               </CardContent>
             </Card>
+
           </div>
 
           <!-- CHECK-IN SECTION -->
@@ -101,11 +107,13 @@
                 />
               </section>
 
-              <Button
-                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-lg shadow-md hover:shadow-xl font-semibold transition-all"
-              >
-                Check in
-              </Button>
+            <Button
+              @click="submitReflection"
+              class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-lg shadow-md hover:shadow-xl font-semibold transition-all"
+            >
+              Check in
+            </Button>
+
             </CardContent>
           </Card>
         </section>
@@ -158,9 +166,16 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { CheckCircle2, XCircle, Calendar, BookOpen, Target } from 'lucide-vue-next'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/store/auth'
+
+import {
+  CheckCircle2,
+  BookOpen,
+  Target,
+} from 'lucide-vue-next'
 
 import Navbar from '@/components/Navbar.vue'
 import Footer from '@/components/Footer.vue'
@@ -172,11 +187,19 @@ import CardContent from '@/components/CardContent.vue'
 import Progress from '@/components/Progress.vue'
 import Textarea from '@/components/Textarea.vue'
 
+/* ------------------------------------------------------------------
+   INIT
+------------------------------------------------------------------ */
 const router = useRouter()
+const { state } = useAuth()
+const userId = state.user?.id
 
+/* ------------------------------------------------------------------
+   LOCAL STATES
+------------------------------------------------------------------ */
 const checklist = reactive({
   mindful: false,
-  productive: true,
+  productive: false,
   reflective: false
 })
 
@@ -189,10 +212,136 @@ const checklistLabels = {
 const mood = ref(3)
 const notes = ref('')
 
-const achievements = [
-  { title: 'Day One', desc: 'Started your recovery journey' },
-  { title: '3 Days', desc: 'Maintained focus for 3 days' },
-  { title: '1 Week', desc: 'Completed your first week milestone' },
-  { title: '2 Weeks', desc: 'Stayed consistent for two weeks' }
-]
+/* Dashboard Stats */
+const daysCompleted = ref(0)
+const avgMood = ref(0)
+const streak = ref(0)
+
+/* Achievement list */
+const achievements = ref([])
+
+/* ------------------------------------------------------------------
+   LOAD DAYS COMPLETED
+------------------------------------------------------------------ */
+async function loadDaysCompleted() {
+  const { count } = await supabase
+    .from("daily_reflections")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+
+  daysCompleted.value = count || 0
+}
+
+/* ------------------------------------------------------------------
+   LOAD AVG MOOD
+------------------------------------------------------------------ */
+async function loadAvgMood() {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10)
+
+  const { data } = await supabase
+    .from("daily_reflections")
+    .select("mood_level")
+    .eq("user_id", userId)
+    .gte("date", sevenDaysAgo)
+
+  if (!data || data.length === 0) {
+    avgMood.value = 0
+    return
+  }
+
+  const total = data.reduce((acc, i) => acc + i.mood_level, 0)
+  avgMood.value = (total / data.length).toFixed(1)
+}
+
+/* ------------------------------------------------------------------
+   LOAD STREAK
+------------------------------------------------------------------ */
+async function loadStreak() {
+  const { data } = await supabase
+    .from("daily_reflections")
+    .select("date")
+    .eq("user_id", userId)
+    .order("date", { ascending: false })
+
+  if (!data || data.length === 0) {
+    streak.value = 0
+    return
+  }
+
+  let count = 0
+  let current = new Date()
+
+  for (let row of data) {
+    const checkDate = new Date(row.date)
+
+    if (checkDate.toDateString() === current.toDateString()) {
+      count++
+      current.setDate(current.getDate() - 1)
+    } else {
+      break
+    }
+  }
+
+  streak.value = count
+}
+
+/* ------------------------------------------------------------------
+   LOAD ACHIEVEMENTS (AUTO)
+------------------------------------------------------------------ */
+function loadAchievements() {
+  const d = daysCompleted.value
+
+  achievements.value = []
+
+  if (d >= 1) achievements.value.push({ title: "Day One", desc: "Started your journey" })
+  if (d >= 3) achievements.value.push({ title: "3 Days", desc: "Maintained focus for 3 days" })
+  if (d >= 7) achievements.value.push({ title: "1 Week", desc: "Completed your first week milestone" })
+  if (d >= 14) achievements.value.push({ title: "2 Weeks", desc: "Stayed consistent for two weeks" })
+  if (d >= 30) achievements.value.push({ title: "1 Month", desc: "Reached 1 month milestone" })
+}
+
+/* ------------------------------------------------------------------
+   SUBMIT REFLECTION
+------------------------------------------------------------------ */
+async function submitReflection() {
+  const today = new Date().toISOString().slice(0, 10)
+
+  const { error } = await supabase
+    .from("daily_reflections")
+    .upsert({
+      user_id: userId,
+      date: today,
+      practiced_mindfulness: checklist.mindful,
+      focused_on_work: checklist.productive,
+      reflected_on_emotions: checklist.reflective,
+      mood_level: mood.value,
+      notes: notes.value
+    })
+
+  if (error) {
+    alert("You already checked in today.")
+    return
+  }
+
+  alert("Reflection submitted!")
+
+  await loadDashboard()
+}
+
+/* ------------------------------------------------------------------
+   LOAD ALL DASHBOARD DATA
+------------------------------------------------------------------ */
+async function loadDashboard() {
+  await loadDaysCompleted()
+  await loadAvgMood()
+  await loadStreak()
+  await loadAchievements()
+}
+
+onMounted(() => {
+  if (!userId) return router.push('/login')
+  loadDashboard()
+})
 </script>
