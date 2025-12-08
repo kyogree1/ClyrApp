@@ -75,8 +75,11 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/store/auth'
 import { BookOpen, Plus, Calendar, Smile, Frown, Meh } from 'lucide-vue-next'
+
 import Navbar from '@/components/Navbar.vue'
 import Footer from '@/components/Footer.vue'
 import Button from '@/components/Button.vue'
@@ -87,37 +90,60 @@ import AddJournalDialog from '@/components/AddJournalDialog.vue'
 const journals = ref([])
 const openAddDialog = ref(false)
 
-// 🔄 Load dari localStorage saat pertama kali
-onMounted(() => {
-  const saved = localStorage.getItem('journals')
-  if (saved) {
-    journals.value = JSON.parse(saved)
-    console.log('📦 Jurnal dimuat dari localStorage:', journals.value)
-  }
-})
+const { state } = useAuth()
+const userId = state.user?.id
 
-// 🧩 Fungsi tambah jurnal
-function addJournal(entry) {
-  console.log('🔥 [JournalPage] Event @add diterima! Entry:', entry)
+/* ------------------------------------------------------------
+   1. LOAD JOURNAL DARI SUPABASE
+------------------------------------------------------------ */
+async function loadJournals() {
+  const { data, error } = await supabase
+    .from("journal_entries")
+    .select("*")
+    .eq("user_id", userId)
+    .order("date", { ascending: false })
 
-  if (!entry || !entry.title) {
-    console.warn('⚠️ Tidak ada entry diterima!')
+  if (error) {
+    console.error("❌ Gagal memuat jurnal:", error)
     return
   }
 
-  journals.value.unshift(entry)
-  localStorage.setItem('journals', JSON.stringify(journals.value))
-  console.log('✅ Jurnal disimpan! Total sekarang:', journals.value.length)
+  journals.value = data
 }
 
+/* ------------------------------------------------------------
+   2. ADD JOURNAL KE SUPABASE
+------------------------------------------------------------ */
+async function addJournal(entry) {
+  if (!entry || !entry.title) {
+    console.warn("⚠️ Entry jurnal kosong.")
+    return
+  }
 
-// 🔁 Watch agar sinkron saat localStorage berubah
-watch(journals, (val) => {
-  console.log('🧠 Watcher aktif, menyimpan ulang...')
-  localStorage.setItem('journals', JSON.stringify(val))
-}, { deep: true })
+  const { data, error } = await supabase
+    .from("journal_entries")
+    .insert({
+      user_id: userId,
+      title: entry.title,
+      content: entry.content,
+      mood: entry.mood,
+      date: entry.date || new Date().toISOString()
+    })
+    .select("*")
+    .single()
 
-// 🟢 Fungsi bantu
+  if (error) {
+    console.error("❌ Gagal menambah jurnal:", error)
+    return
+  }
+
+  // Masukkan jurnal baru ke list
+  journals.value.unshift(data)
+}
+
+/* ------------------------------------------------------------
+   3. HELPER FUNCTIONS
+------------------------------------------------------------ */
 function moodIcon(mood) {
   if (mood >= 4) return Smile
   if (mood >= 2) return Meh
@@ -140,4 +166,12 @@ function formatDate(date) {
     minute: '2-digit'
   }).format(new Date(date))
 }
+
+/* ------------------------------------------------------------
+   4. LOAD DATA SAAT HALAMAN DIBUKA
+------------------------------------------------------------ */
+onMounted(() => {
+  if (!userId) return
+  loadJournals()
+})
 </script>

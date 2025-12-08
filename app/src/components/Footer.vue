@@ -5,7 +5,8 @@
       <div>
         <h3 class="text-2xl font-semibold text-white mb-3">Clyr</h3>
         <p class="text-gray-400 text-sm">
-          A digital platform for recovery and emotional wellness — supporting your journey toward mental and emotional balance.
+          A recovery platform designed to help individuals overcome compulsive content consumption, 
+          rebuild focus, and regain control of their digital life — one step at a time.
         </p>
       </div>
 
@@ -24,24 +25,10 @@
       <div>
         <h4 class="text-white font-semibold mb-4">Support</h4>
         <ul class="space-y-2 text-sm">
-          <li>
-            <button 
-              v-if="!isLoggedIn" 
-              @click="navigateTo('/login')" 
-              class="hover:text-indigo-400 transition"
-            >
-              Login
-            </button>
-            <button 
-              v-else 
-              @click="navigateTo('/dashboard')" 
-              class="hover:text-indigo-400 transition"
-            >
-              Dashboard
-            </button>
-          </li>
+          <li> <button @click="navigateTo('/dashboard')" class="hover:text-indigo-400 transition">Dashboard </button></li>
           <li><button @click="navigateTo('/journal')" class="hover:text-indigo-400 transition">Journal</button></li>
           <li><button @click="navigateTo('/profile')" class="hover:text-indigo-400 transition">Profile</button></li>
+          <li><button @click="navigateTo('/monitoring')" class="hover:text-indigo-400 transition">Monitoring</button></li>
         </ul>
       </div>
     </div>

@@ -11,8 +11,9 @@ import MonitoringPage from '@/views/MonitoringPage.vue'
 import JournalPage from '@/views/JournalPage.vue'
 import ProfilePage from '@/views/ProfilePage.vue'
 import AboutPage from '@/views/AboutPage.vue'
-import contactpage from '@/views/contactpage.vue'
+import contactpage from '@/views/ContactPage.vue'
 import FeaturesPage from '@/views/FeaturesPage.vue'
+import EditProfile from '@/views/EditProfile.vue'
 
 // INIT
 const router = createRouter({
@@ -37,6 +38,7 @@ const router = createRouter({
     { path: '/monitoring', component: MonitoringPage, meta: { requiresAuth: true } },
     { path: '/journal', component: JournalPage, meta: { requiresAuth: true } },
     { path: '/profile', component: ProfilePage, meta: { requiresAuth: true } },
+    {path: '/profile/edit', component: EditProfile, meta: { requiresAuth: true} } 
   ]
 })
 
