@@ -11,7 +11,12 @@
         <p class="text-gray-600">Your progress and daily emotional insights at a glance.</p>
       </header>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <!-- LOADING STATE SEDERHANA -->
+      <div v-if="isLoading" class="flex justify-center items-center py-20 text-gray-500">
+        Loading your data...
+      </div>
+
+      <div v-else class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- LEFT COLUMN -->
         <section class="lg:col-span-2 space-y-8">
           <!-- SUMMARY CARDS -->
@@ -19,10 +24,14 @@
             <Card class="bg-gradient-to-br from-green-50 to-green-100 border-green-200 shadow-md hover:shadow-lg transition-all">
               <CardContent class="pt-6">
                 <div class="flex items-center gap-3 mb-2">
-                  <div class="p-2 bg-green-500 rounded-lg"><CheckCircle2 class="h-5 w-5 text-white" /></div>
+                  <div class="p-2 bg-green-500 rounded-lg">
+                    <CheckCircle2 class="h-5 w-5 text-white" />
+                  </div>
                   <div class="text-green-700 font-medium">Days Completed</div>
                 </div>
-                <div class="text-3xl text-green-700 mt-2 font-semibold">{{ daysCompleted }}</div>
+                <div class="text-3xl text-green-700 mt-2 font-semibold">
+                  {{ daysCompleted }}
+                </div>
                 <p class="text-green-600 text-sm mt-1">Streaks maintained</p>
               </CardContent>
             </Card>
@@ -35,11 +44,12 @@
                   </div>
                   <div class="text-purple-700 font-medium">Avg Mood (7 Days)</div>
                 </div>
-                <div class="text-3xl text-purple-700 mt-2 font-semibold">{{ avgMood }}</div>
+                <div class="text-3xl text-purple-700 mt-2 font-semibold">
+                  {{ avgMood }}
+                </div>
                 <p class="text-purple-600 text-sm mt-1">Your emotional trend this week</p>
               </CardContent>
             </Card>
-
 
             <Card class="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200 shadow-md hover:shadow-lg transition-all">
               <CardContent class="pt-6">
@@ -49,11 +59,12 @@
                   </div>
                   <div class="text-yellow-700 font-medium">Current Streak</div>
                 </div>
-                <div class="text-3xl text-yellow-700 mt-2 font-semibold">{{ streak }}</div>
+                <div class="text-3xl text-yellow-700 mt-2 font-semibold">
+                  {{ streak }}
+                </div>
                 <p class="text-yellow-600 text-sm mt-1">Keep the momentum!</p>
               </CardContent>
             </Card>
-
           </div>
 
           <!-- CHECK-IN SECTION -->
@@ -64,6 +75,7 @@
               </CardTitle>
             </CardHeader>
             <CardContent class="pt-6 space-y-6">
+              <!-- CHECKLIST -->
               <section>
                 <h4 class="mb-4 text-gray-700 font-semibold">Today's Focus</h4>
                 <div class="space-y-3">
@@ -78,26 +90,30 @@
                       v-model="checklist[key]"
                       class="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                     />
-                    <label :for="key" class="flex-1 cursor-pointer text-gray-700">{{ label }}</label>
+                    <label :for="key" class="flex-1 cursor-pointer text-gray-700">
+                      {{ label }}
+                    </label>
                   </div>
                 </div>
               </section>
 
+              <!-- MOOD SLIDER -->
               <section>
                 <div class="flex items-center justify-between mb-3">
                   <h4 class="text-gray-700 font-semibold">Mood Level (0–5)</h4>
                   <span class="text-2xl text-indigo-600 font-bold">{{ mood }}</span>
                 </div>
-                <Progress :value="(mood / 5) * 100" class="h-3 bg-gray-200 rounded-full" />
+                <Progress :value="moodPercent" class="h-3 bg-gray-200 rounded-full" />
                 <input
                   type="range"
                   min="0"
                   max="5"
-                  v-model="mood"
+                  v-model.number="mood"
                   class="w-full mt-3 accent-indigo-600"
                 />
               </section>
 
+              <!-- NOTES -->
               <section>
                 <h4 class="mb-3 text-gray-700 font-semibold">Personal Notes</h4>
                 <Textarea
@@ -107,13 +123,14 @@
                 />
               </section>
 
-            <Button
-              @click="submitReflection"
-              class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-lg shadow-md hover:shadow-xl font-semibold transition-all"
-            >
-              Check in
-            </Button>
-
+              <Button
+                @click="submitReflection"
+                :disabled="isSubmitting"
+                class="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white py-4 rounded-lg shadow-md hover:shadow-xl font-semibold transition-all"
+              >
+                <span v-if="isSubmitting">Submitting...</span>
+                <span v-else>Check in</span>
+              </Button>
             </CardContent>
           </Card>
         </section>
@@ -133,7 +150,9 @@
                 class="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200 hover:shadow-md transition-all"
               >
                 <div class="flex items-start gap-3">
-                  <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                  <div
+                    class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0"
+                  >
                     <span class="text-indigo-600 font-semibold">{{ idx + 1 }}</span>
                   </div>
                   <div class="flex-1">
@@ -142,6 +161,10 @@
                   </div>
                 </div>
               </div>
+
+              <p v-if="achievements.length === 0" class="text-sm text-gray-500">
+                No achievements yet. Start checking in to unlock milestones!
+              </p>
             </CardContent>
           </Card>
 
@@ -166,7 +189,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/store/auth'
@@ -188,11 +211,14 @@ import Progress from '@/components/Progress.vue'
 import Textarea from '@/components/Textarea.vue'
 
 /* ------------------------------------------------------------------
-   INIT
+   INIT & AUTH
 ------------------------------------------------------------------ */
 const router = useRouter()
 const { state } = useAuth()
-const userId = state.user?.id
+
+const userId = ref(null)
+const isLoading = ref(true)
+const isSubmitting = ref(false)
 
 /* ------------------------------------------------------------------
    LOCAL STATES
@@ -200,14 +226,14 @@ const userId = state.user?.id
 const checklist = reactive({
   mindful: false,
   productive: false,
-  reflective: false
+  reflective: false,
 })
 
-const checklistLabels = {
+const checklistLabels = Object.freeze({
   mindful: 'Practiced Mindfulness',
   productive: 'Focused on Work',
-  reflective: 'Reflected on Emotions'
-}
+  reflective: 'Reflected on Emotions',
+})
 
 const mood = ref(3)
 const notes = ref('')
@@ -221,127 +247,209 @@ const streak = ref(0)
 const achievements = ref([])
 
 /* ------------------------------------------------------------------
+   COMPUTED
+------------------------------------------------------------------ */
+const moodPercent = computed(() => (mood.value / 5) * 100)
+
+/* ------------------------------------------------------------------
+   HELPERS
+------------------------------------------------------------------ */
+function resetForm() {
+  checklist.mindful = false
+  checklist.productive = false
+  checklist.reflective = false
+  mood.value = 3
+  notes.value = ''
+}
+
+/* ------------------------------------------------------------------
    LOAD DAYS COMPLETED
 ------------------------------------------------------------------ */
-async function loadDaysCompleted() {
-  const { count } = await supabase
-    .from("daily_reflections")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", userId)
+async function loadDaysCompleted(uid) {
+  const { error, count } = await supabase
+    .from('daily_reflections')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', uid)
+
+  if (error) {
+    console.error('[Dashboard] loadDaysCompleted error:', error)
+    return
+  }
 
   daysCompleted.value = count || 0
 }
 
 /* ------------------------------------------------------------------
-   LOAD AVG MOOD
+   LOAD AVG MOOD (7 DAYS TERAKHIR)
 ------------------------------------------------------------------ */
-async function loadAvgMood() {
+async function loadAvgMood(uid) {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 10)
 
-  const { data } = await supabase
-    .from("daily_reflections")
-    .select("mood_level")
-    .eq("user_id", userId)
-    .gte("date", sevenDaysAgo)
+  const { data, error } = await supabase
+    .from('daily_reflections')
+    .select('mood_level, date')
+    .eq('user_id', uid)
+    .gte('date', sevenDaysAgo)
+
+  if (error) {
+    console.error('[Dashboard] loadAvgMood error:', error)
+    avgMood.value = 0
+    return
+  }
 
   if (!data || data.length === 0) {
     avgMood.value = 0
     return
   }
 
-  const total = data.reduce((acc, i) => acc + i.mood_level, 0)
-  avgMood.value = (total / data.length).toFixed(1)
+  const total = data.reduce((acc, item) => acc + (item.mood_level || 0), 0)
+  avgMood.value = Number((total / data.length).toFixed(1))
 }
 
 /* ------------------------------------------------------------------
-   LOAD STREAK
+   LOAD STREAK (BERDASARKAN TANGGAL)
 ------------------------------------------------------------------ */
-async function loadStreak() {
-  const { data } = await supabase
-    .from("daily_reflections")
-    .select("date")
-    .eq("user_id", userId)
-    .order("date", { ascending: false })
+async function loadStreak(uid) {
+  const { data, error } = await supabase
+    .from('daily_reflections')
+    .select('date')
+    .eq('user_id', uid)
+    .order('date', { ascending: false })
+
+  if (error) {
+    console.error('[Dashboard] loadStreak error:', error)
+    streak.value = 0
+    return
+  }
 
   if (!data || data.length === 0) {
     streak.value = 0
     return
   }
 
-  let count = 0
-  let current = new Date()
+  // Asumsikan kolom "date" adalah YYYY-MM-DD (tanpa waktu)
+  const dateSet = new Set(data.map((row) => row.date))
 
-  for (let row of data) {
-    const checkDate = new Date(row.date)
+  let currentDate = new Date()
+  let currentStreak = 0
 
-    if (checkDate.toDateString() === current.toDateString()) {
-      count++
-      current.setDate(current.getDate() - 1)
+  while (true) {
+    const dateStr = currentDate.toISOString().slice(0, 10)
+    if (dateSet.has(dateStr)) {
+      currentStreak++
+      currentDate.setDate(currentDate.getDate() - 1)
     } else {
       break
     }
   }
 
-  streak.value = count
+  streak.value = currentStreak
 }
 
 /* ------------------------------------------------------------------
-   LOAD ACHIEVEMENTS (AUTO)
+   LOAD ACHIEVEMENTS (AUTO DARI daysCompleted)
 ------------------------------------------------------------------ */
 function loadAchievements() {
   const d = daysCompleted.value
+  const result = []
 
-  achievements.value = []
+  if (d >= 1) result.push({ title: 'Day One', desc: 'Started your journey' })
+  if (d >= 3) result.push({ title: '3 Days', desc: 'Maintained focus for 3 days' })
+  if (d >= 7) result.push({ title: '1 Week', desc: 'Completed your first week milestone' })
+  if (d >= 14) result.push({ title: '2 Weeks', desc: 'Stayed consistent for two weeks' })
+  if (d >= 30) result.push({ title: '1 Month', desc: 'Reached 1 month milestone' })
 
-  if (d >= 1) achievements.value.push({ title: "Day One", desc: "Started your journey" })
-  if (d >= 3) achievements.value.push({ title: "3 Days", desc: "Maintained focus for 3 days" })
-  if (d >= 7) achievements.value.push({ title: "1 Week", desc: "Completed your first week milestone" })
-  if (d >= 14) achievements.value.push({ title: "2 Weeks", desc: "Stayed consistent for two weeks" })
-  if (d >= 30) achievements.value.push({ title: "1 Month", desc: "Reached 1 month milestone" })
+  achievements.value = result
 }
 
 /* ------------------------------------------------------------------
    SUBMIT REFLECTION
+   NOTE: untuk bisa deteksi "sudah check-in hari ini",
+   sebaiknya di DB ada UNIQUE (user_id, date)
 ------------------------------------------------------------------ */
 async function submitReflection() {
+  if (!userId.value) {
+    router.push('/login')
+    return
+  }
+
+  isSubmitting.value = true
   const today = new Date().toISOString().slice(0, 10)
 
-  const { error } = await supabase
-    .from("daily_reflections")
-    .upsert({
-      user_id: userId,
+  try {
+    const payload = {
+      user_id: userId.value,
       date: today,
       practiced_mindfulness: checklist.mindful,
       focused_on_work: checklist.productive,
       reflected_on_emotions: checklist.reflective,
       mood_level: mood.value,
-      notes: notes.value
-    })
+      notes: notes.value.trim(),
+    }
 
-  if (error) {
-    alert("You already checked in today.")
-    return
+    const { error } = await supabase
+      .from('daily_reflections')
+      .insert(payload)
+
+    if (error) {
+      // 23505 = unique_violation (Postgres)
+      if (error.code === '23505') {
+        alert('You already checked in today.')
+        return
+      }
+      console.error('[Dashboard] submitReflection error:', error)
+      alert('Failed to submit reflection. Please try again.')
+      return
+    }
+
+    alert('Reflection submitted!')
+    resetForm()
+    await loadDashboard(userId.value)
+  } finally {
+    isSubmitting.value = false
   }
-
-  alert("Reflection submitted!")
-
-  await loadDashboard()
 }
 
 /* ------------------------------------------------------------------
    LOAD ALL DASHBOARD DATA
 ------------------------------------------------------------------ */
-async function loadDashboard() {
-  await loadDaysCompleted()
-  await loadAvgMood()
-  await loadStreak()
-  await loadAchievements()
+async function loadDashboard(uid) {
+  try {
+    isLoading.value = true
+    await Promise.all([
+      loadDaysCompleted(uid),
+      loadAvgMood(uid),
+      loadStreak(uid),
+    ])
+    loadAchievements()
+  } catch (err) {
+    console.error('[Dashboard] loadDashboard error:', err)
+  } finally {
+    isLoading.value = false
+  }
 }
 
-onMounted(() => {
-  if (!userId) return router.push('/login')
-  loadDashboard()
-})
+/* ------------------------------------------------------------------
+   AUTH WATCHER
+   - Nunggu state.user siap
+   - Kalau tidak ada user → redirect ke /login
+------------------------------------------------------------------ */
+watch(
+  () => state.user,
+  (user) => {
+    if (!user) {
+      router.push('/login')
+      return
+    }
+
+    if (userId.value !== user.id) {
+      userId.value = user.id
+      loadDashboard(user.id)
+    }
+  },
+  { immediate: true }
+)
 </script>
+  
