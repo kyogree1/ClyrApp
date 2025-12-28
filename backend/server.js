@@ -186,6 +186,86 @@ app.post("/api/midtrans/webhook", async (req, res) => {
 })
 
 /* =========================================================
+   4️⃣ GENERATE GIFT CODE (PREMIUM ONLY)
+========================================================= */
+app.post("/api/gift/generate", async (req, res) => {
+  try {
+    const { user_id } = req.body
+    if (!user_id) {
+      return res.status(400).json({ error: "user_id required" })
+    }
+
+    const { data: profile, error } = await supabaseAdmin
+      .from("profiles")
+      .select("is_premium")
+      .eq("id", user_id)
+      .single()
+
+    if (error || !profile) {
+      return res.status(404).json({ error: "User not found" })
+    }
+
+    if (!profile.is_premium) {
+      return res.status(403).json({ error: "Premium only" })
+    }
+
+    const code =
+      "CLYR-GIFT-" + Math.random().toString(36).substring(2, 8).toUpperCase()
+
+    const { data, error: insertError } = await supabaseAdmin
+      .from("gift_codes")
+      .insert({
+        code,
+        created_by: user_id,
+        max_uses: 5,
+        used_count: 0,
+        is_active: true,
+      })
+      .select()
+      .single()
+
+    if (insertError) {
+      console.error(insertError)
+      return res.status(500).json({ error: "Failed to create gift code" })
+    }
+
+    res.json({
+      code: data.code,
+      used_count: data.used_count,
+      max_uses: data.max_uses,
+    })
+  } catch (err) {
+    console.error("❌ GENERATE GIFT ERROR:", err)
+    res.status(500).json({ error: "Internal server error" })
+  }
+})
+
+/* =========================================================
+   5️⃣ GET MY GIFT CODES (HISTORY)
+========================================================= */
+app.get("/api/gift/my/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params
+
+    const { data, error } = await supabaseAdmin
+      .from("gift_codes")
+      .select("code, used_count, max_uses, is_active, created_at")
+      .eq("created_by", userId)
+      .order("created_at", { ascending: false })
+
+    if (error) {
+      console.error(error)
+      return res.status(500).json({ error: "Failed fetch gift history" })
+    }
+
+    res.json({ gifts: data })
+  } catch (err) {
+    console.error("❌ FETCH GIFT ERROR:", err)
+    res.status(500).json({ error: "Internal server error" })
+  }
+})
+
+/* =========================================================
    404
 ========================================================= */
 app.use((_req, res) => {
