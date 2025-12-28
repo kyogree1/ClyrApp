@@ -1,67 +1,115 @@
-// src/store/auth.js
 import { reactive } from "vue"
 import { supabase } from "@/lib/supabase"
 
 const EXTENSION_ID = "hkkcfiigejjahmkbhmhbflaedcgieefi"
 
-// GLOBAL STATE (singleton)
+// ===============================
+// GLOBAL STATE
+// ===============================
 const state = reactive({
   user: null,
   ready: false,
+  isPremium: false,
+  premiumLoading: false, // ✅ TAMBAHAN
 })
 
-// Singleton flag → mencegah listener dipasang berkali-kali
+// cegah listener dobel
 let initialized = false
 
-// Debounce untuk mencegah spam sync (maks 1x per detik)
+// ===============================
+// EXTENSION SYNC (AMAN)
+// ===============================
 let lastSync = 0
 function syncUserToExtension() {
   const now = Date.now()
-  if (now - lastSync < 1000) return // ⛔ Batasi 1x/1s
+  if (now - lastSync < 1000) return
   lastSync = now
 
   if (!state.user) return
   if (typeof chrome === "undefined" || !chrome.runtime) return
 
-  chrome.runtime.sendMessage(
-    EXTENSION_ID,
-    { type: "SET_USER", userId: state.user.id },
-    (res) => {
-      if (import.meta.env.DEV) {
-        console.log("[AUTH] Extension reply:", res)
-      }
-    }
-  )
+  try {
+    chrome.runtime.sendMessage(
+      EXTENSION_ID,
+      { type: "SET_USER", userId: state.user.id },
+      () => {}
+    )
+  } catch {
+    // silent
+  }
 }
 
+// ===============================
+// PREMIUM CHECK (SOURCE OF TRUTH)
+// ===============================
+async function refreshPremiumStatus() {
+  if (!state.user) {
+    state.isPremium = false
+    return
+  }
+
+  state.premiumLoading = true
+
+  try {
+    const { data } = await supabase
+      .from("profiles")
+      .select("is_premium")
+      .eq("id", state.user.id)
+      .maybeSingle()
+
+    state.isPremium = data?.is_premium === true
+  } catch {
+    state.isPremium = false
+  } finally {
+    state.premiumLoading = false
+  }
+}
+
+// ===============================
+// MAIN STORE
+// ===============================
 export function useAuth() {
-  // Jika sudah pernah init → jangan pasang listener lagi
+
+  // 🔒 LISTENER AUTH — SATU KALI
   if (!initialized) {
     initialized = true
 
-    // LISTEN REALTIME AUTH CHANGE (dipasang SATU KALI saja)
     supabase.auth.onAuthStateChange((_event, session) => {
       state.user = session?.user || null
 
-      // Sync hanya jika login, bukan logout
-      if (state.user) syncUserToExtension()
+      if (state.user) {
+        refreshPremiumStatus()
+        syncUserToExtension()
+      } else {
+        state.isPremium = false
+      }
     })
   }
 
-  // INIT PERTAMA — digunakan di main.js sebelum mount app
+  // ===============================
+  // INIT
+  // ===============================
   async function init() {
     if (state.ready) return
 
-    const { data, error } = await supabase.auth.getSession()
-    if (error) console.error("[AUTH] getSession error:", error)
+    try {
+      const { data } = await supabase.auth.getSession()
+      state.user = data?.session?.user || null
+    } catch {
+      state.user = null
+    }
 
-    state.user = data?.session?.user || null
     state.ready = true
 
-    if (state.user) syncUserToExtension()
+    if (state.user) {
+      refreshPremiumStatus()
+      syncUserToExtension()
+    }
   }
 
+  // ===============================
   // LOGIN
+  // ===============================
   async function signIn(email, password) {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -70,15 +118,34 @@ export function useAuth() {
     if (error) throw error
 
     state.user = data.user
+    refreshPremiumStatus()
     syncUserToExtension()
-    return data
+
+    return data.user   // ✅ TAMBAHKAN INI
   }
 
+  // ===============================
   // LOGOUT
+  // ===============================
   async function signOut() {
     await supabase.auth.signOut()
     state.user = null
+    state.isPremium = false
   }
 
-  return { state, init, signIn, signOut }
+  // ===============================
+  // MANUAL FORCE REFRESH (OPSIONAL)
+  // ===============================
+  async function forceRefreshPremium() {
+    await refreshPremiumStatus()
+  }
+
+  return {
+    state,
+    init,
+    signIn,
+    signOut,
+    // ✅ TAMBAHAN API
+    refreshPremiumStatus
+  }
 }

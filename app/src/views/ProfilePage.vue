@@ -1,169 +1,153 @@
 <template>
   <div class="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col">
-    <!-- NAVBAR -->
     <Navbar />
 
-    <!-- MAIN CONTENT -->
     <main class="flex-1 container mx-auto px-6 py-12 max-w-7xl">
-      <header class="mb-10 text-center lg:text-left">
-        <h1 class="text-3xl font-bold text-gray-800 mb-2">User Profile</h1>
-        <p class="text-gray-600">View your recovery progress, achievements, and personal data.</p>
+      <!-- HEADER -->
+      <header class="mb-10">
+        <h1 class="text-3xl font-bold text-gray-800">User Profile</h1>
+        <p class="text-gray-600">Kelola akun dan lihat progres pemulihan Anda</p>
       </header>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <!-- SIDEBAR PROFILE -->
-        <Card class="shadow-lg hover:shadow-xl transition-all bg-white/90 backdrop-blur-sm flex flex-col items-center py-8">
+
+        <!-- SIDEBAR -->
+        <Card class="bg-white/90 backdrop-blur shadow-lg flex flex-col items-center py-8">
           <div class="w-28 h-28 rounded-full bg-indigo-100 flex items-center justify-center mb-4">
             <User class="h-14 w-14 text-indigo-600" />
           </div>
-          <h2 class="text-lg font-semibold text-gray-800">{{ user.name }}</h2>
+
+          <h2 class="text-lg font-semibold">{{ user.name }}</h2>
           <p class="text-gray-500 text-sm">{{ user.email }}</p>
 
+          <span
+            class="mt-2 text-xs px-3 py-1 rounded-full"
+            :class="isPremium
+              ? 'bg-yellow-100 text-yellow-700'
+              : 'bg-gray-200 text-gray-600'"
+          >
+            {{ isPremium ? 'PREMIUM' : 'FREE' }}
+          </span>
+
           <div class="mt-6 space-y-2 w-full px-8">
-            <Button
-              variant="outline"
-              class="w-full border-indigo-300 text-indigo-600 hover:bg-indigo-50"
-              @click="router.push('/profile/edit')"
-            >
-              <Edit class="h-4 w-4 mr-2" /> Edit Profile
+            <Button variant="outline" class="w-full" @click="router.push('/profile/edit')">
+              Edit Profile
             </Button>
-            <Button
-              variant="outline"
-              class="w-full border-gray-300 text-gray-700 hover:bg-gray-50"
-              @click="router.push('/dashboard')"
-            >
-              <ArrowLeft class="h-4 w-4 mr-2" /> Back
+            <Button variant="outline" class="w-full" @click="router.push('/dashboard')">
+              Back
             </Button>
           </div>
         </Card>
 
-        <!-- PROFILE DETAILS -->
+        <!-- CONTENT -->
         <div class="md:col-span-2 space-y-8">
-          <Card class="shadow-md hover:shadow-lg transition-all">
-            <CardHeader class="border-b bg-gradient-to-r from-indigo-50 to-purple-50">
-              <CardTitle class="text-indigo-600 flex items-center gap-2">
-                <Info class="h-5 w-5" /> Account Information
-              </CardTitle>
+
+          <!-- ACCOUNT INFO -->
+          <Card>
+            <CardHeader>
+              <CardTitle>Account Information</CardTitle>
             </CardHeader>
-            <CardContent class="pt-6 space-y-3">
-              <div class="flex justify-between text-gray-700">
-                <span>Name</span>
-                <span class="font-medium">{{ user.name }}</span>
+            <CardContent class="space-y-2">
+              <div class="flex justify-between">
+                <span>Name</span><span>{{ user.name }}</span>
               </div>
-              <div class="flex justify-between text-gray-700">
-                <span>Email</span>
-                <span class="font-medium">{{ user.email }}</span>
+              <div class="flex justify-between">
+                <span>Email</span><span>{{ user.email }}</span>
               </div>
-              <div class="flex justify-between text-gray-700">
-                <span>Joined</span>
-                <span class="font-medium">{{ user.joined }}</span>
+              <div class="flex justify-between">
+                <span>Joined</span><span>{{ user.joined }}</span>
               </div>
             </CardContent>
           </Card>
 
-          <!-- STATS CARD -->
-          <Card class="shadow-md hover:shadow-lg transition-all">
-            <CardHeader class="border-b bg-gradient-to-r from-blue-50 to-indigo-50">
-              <CardTitle class="text-indigo-600 flex items-center gap-2">
-                <BarChart class="h-5 w-5" /> Recovery Statistics
-              </CardTitle>
+          <!-- STATS -->
+          <Card>
+            <CardHeader>
+              <CardTitle>Recovery Statistics</CardTitle>
             </CardHeader>
-            <CardContent class="pt-6 space-y-5">
-              <div class="space-y-2">
-                <div class="flex justify-between text-sm text-gray-700">
+
+            <CardContent class="space-y-5">
+              <!-- FREE -->
+              <div>
+                <div class="flex justify-between text-sm">
                   <span>Clean Days</span>
                   <span>{{ stats.cleanDays }}</span>
                 </div>
-                <Progress :value="stats.cleanDays / 30 * 100" class="rounded-full" />
+                <Progress :value="stats.cleanDays / 30 * 100" />
               </div>
 
-              <div class="space-y-2">
-                <div class="flex justify-between text-sm text-gray-700">
-                  <span>Longest Streak</span>
-                  <span>{{ stats.longestStreak }} days</span>
+              <!-- PREMIUM -->
+              <template v-if="isPremium">
+                <div>
+                  <div class="flex justify-between text-sm">
+                    <span>Longest Streak</span>
+                    <span>{{ stats.longestStreak }} days</span>
+                  </div>
+                  <Progress :value="stats.longestStreak / 30 * 100" />
                 </div>
-                <Progress :value="stats.longestStreak / 30 * 100" class="rounded-full" />
-              </div>
 
-              <div class="space-y-2">
-                <div class="flex justify-between text-sm text-gray-700">
-                  <span>Total Journals</span>
-                  <span>{{ stats.totalJournals }}</span>
+                <div>
+                  <div class="flex justify-between text-sm">
+                    <span>Total Journals</span>
+                    <span>{{ stats.totalJournals }}</span>
+                  </div>
+                  <Progress :value="stats.totalJournals / 20 * 100" />
                 </div>
-                <Progress :value="stats.totalJournals / 20 * 100" class="rounded-full" />
+              </template>
+
+              <!-- LOCK -->
+              <div
+                v-else
+                class="text-center text-sm text-gray-500 mt-4"
+              >
+                🔒 Statistik lanjutan tersedia untuk Premium
+                <button
+                  class="text-indigo-600 font-semibold ml-1 hover:underline"
+                  @click="openUpgrade"
+                >
+                  Upgrade
+                </button>
               </div>
             </CardContent>
           </Card>
 
-          <!-- POSITIVE HABITS -->
-          <Card class="shadow-md hover:shadow-lg transition-all">
-            <CardHeader class="border-b bg-gradient-to-r from-purple-50 to-pink-50">
-              <CardTitle class="text-purple-600 flex items-center gap-2">
-                <Heart class="h-5 w-5" /> Positive Habits
-              </CardTitle>
+          <!-- HABITS (PREMIUM ONLY) -->
+          <Card v-if="isPremium">
+            <CardHeader>
+              <CardTitle>Positive Habits</CardTitle>
             </CardHeader>
-            <CardContent class="pt-6">
-              <ul class="space-y-2 text-gray-700">
-                <li v-for="(habit, i) in habits" :key="i" class="flex items-center gap-2">
-                  <CheckCircle2 class="h-4 w-4 text-green-500" /> {{ habit }}
+            <CardContent>
+              <ul class="space-y-2">
+                <li
+                  v-for="(habit, i) in habits"
+                  :key="i"
+                  class="flex items-center gap-2"
+                >
+                  <CheckCircle2 class="h-4 w-4 text-green-500" />
+                  {{ habit }}
                 </li>
               </ul>
             </CardContent>
           </Card>
+
         </div>
       </div>
-
-      <!-- EDIT PROFILE DIALOG -->
-      <Dialog v-model:open="editProfile" maxWidth="lg">
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle class="text-indigo-700 text-2xl mb-4 font-semibold">Edit Profile</DialogTitle>
-          </DialogHeader>
-
-          <form @submit.prevent="saveProfile" class="space-y-6">
-            <div class="space-y-2">
-              <Label>Full Name</Label>
-              <Input v-model="tempUser.name" placeholder="Your full name" />
-            </div>
-
-            <div class="space-y-2">
-              <Label>Email</Label>
-              <Input v-model="tempUser.email" placeholder="email@example.com" />
-            </div>
-
-            <DialogFooter class="pt-4">
-              <Button
-                variant="outline"
-                class="border-gray-300 text-gray-700 hover:bg-gray-50"
-                @click="editProfile = false"
-              >
-                Cancel
-              </Button>
-              <Button class="bg-indigo-600 hover:bg-indigo-700 text-white">Save</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </main>
 
-    <!-- FOOTER -->
+    <UpgradePremiumModal v-model="showUpgrade" />
     <Footer />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/store/auth'
 
 import {
   User,
-  Edit,
-  Info,
-  BarChart,
-  Heart,
-  CheckCircle2,
-  ArrowLeft
+  CheckCircle2
 } from 'lucide-vue-next'
 
 import Navbar from '@/components/Navbar.vue'
@@ -174,25 +158,20 @@ import CardHeader from '@/components/CardHeader.vue'
 import CardTitle from '@/components/CardTitle.vue'
 import CardContent from '@/components/CardContent.vue'
 import Progress from '@/components/Progress.vue'
-import Input from '@/components/Input.vue'
-import Label from '@/components/Label.vue'
+import UpgradePremiumModal from '@/components/UpgradePremiumModal.vue'
 
 const router = useRouter()
+const { state } = useAuth()
 
-// 👇 wajib, biar tidak undefined
-const loading = ref(true)
+const isPremium = computed(() => state.isPremium)
 
-// 👇 wajib, karena dipakai di template
-const editProfile = ref(false)
+const showUpgrade = ref(false)
+
 const user = reactive({
   name: '',
   email: '',
-  joined: '',
-  avatar_url: ''
+  joined: ''
 })
-
-// 👇 agar dialog lama tidak error
-const tempUser = reactive({ ...user })
 
 const stats = reactive({
   cleanDays: 14,
@@ -200,33 +179,29 @@ const stats = reactive({
   totalJournals: 12
 })
 
-const habits = ref([
+const habits = [
   'Daily Meditation',
   'Read 15 minutes',
-  'Write reflection journal',
-  'Light exercise'
-])
+  'Write reflection journal'
+]
+
+const openUpgrade = () => {
+  showUpgrade.value = true
+}
 
 onMounted(async () => {
-  const { data: { user: authUser }} = await supabase.auth.getUser()
+  const { data } = await supabase.auth.getUser()
+  if (!data.user) return router.push('/login')
 
-  if (!authUser) {
-    router.push('/login')
-    return
-  }
-
-  user.email = authUser.email
+  user.email = data.user.email
+  user.joined = data.user.created_at.split('T')[0]
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('*')
-    .eq('id', authUser.id)
+    .select('full_name')
+    .eq('id', data.user.id)
     .single()
 
-  user.name = profile?.full_name || ''
-  user.joined = profile?.joined || authUser.created_at.split("T")[0]
-  user.avatar_url = profile?.avatar_url || ''
-
-  loading.value = false
+  user.name = profile?.full_name || 'User'
 })
 </script>
