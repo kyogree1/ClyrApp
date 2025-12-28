@@ -11,16 +11,16 @@ const app = express()
 /* =======================
    CORS (AMAN PROD)
 ======================= */
-app.use(
-  cors({
-    origin: [
-      "http://localhost:5173",
-      "https://clyr-app.vercel.app",
-    ],
-    methods: ["GET", "POST"],
-    credentials: true,
-  })
-)
+app.use(cors({
+  origin: [
+    "https://clyrapp.vercel.app",
+    "http://localhost:5173"
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
+}))
+
 
 app.use(express.json())
 
