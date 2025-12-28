@@ -30,6 +30,7 @@
 
       <!-- Plans -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
+
         <!-- FREE -->
         <div
           class="border border-gray-200 rounded-2xl p-8
@@ -47,33 +48,23 @@
               <li class="flex items-center gap-2">
                 <span class="text-emerald-500">✔</span> Profile
               </li>
-              <li class="line-through text-gray-400">
-                Monitoring
-              </li>
-              <li class="line-through text-gray-400">
-                Personal Journal
-              </li>
-              <li class="line-through text-gray-400">
-                Insights & Streaks
-              </li>
+              <li class="line-through text-gray-400">Monitoring</li>
+              <li class="line-through text-gray-400">Personal Journal</li>
+              <li class="line-through text-gray-400">Insights & Streaks</li>
             </ul>
           </div>
 
           <div class="mt-8">
-            <div class="text-3xl font-bold text-gray-900">
-              $0
-            </div>
+            <div class="text-3xl font-bold text-gray-900">Rp 0</div>
 
             <button
               disabled
               class="w-full mt-4 py-3 rounded-xl
-                     border border-gray-300
-                     bg-white text-gray-400
-                     text-sm font-medium
-                     cursor-not-allowed
-                     shadow-inner"
+                     border border-gray-300 bg-white
+                     text-gray-400 text-sm font-medium
+                     cursor-not-allowed shadow-inner"
             >
-              Current Plan
+              {{ isPremium ? 'Free Plan' : 'Current Plan' }}
             </button>
           </div>
         </div>
@@ -95,47 +86,49 @@
 
           <div class="flex flex-col h-full justify-between">
             <div>
-              <h3 class="text-lg font-semibold mb-4">
-                Premium
-              </h3>
+              <h3 class="text-lg font-semibold mb-4">Premium</h3>
 
               <ul class="space-y-3 text-indigo-100 text-sm">
-                <li class="flex items-center gap-2">
-                  <span class="text-white">✔</span> Dashboard
-                </li>
-                <li class="flex items-center gap-2">
-                  <span class="text-white">✔</span> Profile
-                </li>
-                <li class="flex items-center gap-2">
-                  <span class="text-white">✔</span> Monitoring
-                </li>
-                <li class="flex items-center gap-2">
-                  <span class="text-white">✔</span> Personal Journal
-                </li>
-                <li class="flex items-center gap-2">
-                  <span class="text-white">✔</span> Insights & Streaks
-                </li>
+                <li class="flex items-center gap-2"><span>✔</span> Dashboard</li>
+                <li class="flex items-center gap-2"><span>✔</span> Profile</li>
+                <li class="flex items-center gap-2"><span>✔</span> Monitoring</li>
+                <li class="flex items-center gap-2"><span>✔</span> Personal Journal</li>
+                <li class="flex items-center gap-2"><span>✔</span> Insights & Streaks</li>
               </ul>
             </div>
 
             <div class="mt-8">
               <div class="text-4xl font-bold">
-                $5
-                <span class="text-base font-medium text-indigo-200">
-                  /month
-                </span>
+                Rp 500 <span class="text-base font-medium text-indigo-200">/month</span>
               </div>
 
+              <!-- BUTTON -->
               <button
-                :disabled="loading"
-                @click="startPayment"
+                :disabled="isPremium || loading"
+                @click="!isPremium && startPayment()"
                 class="w-full mt-5 py-3 rounded-xl
                        bg-white text-indigo-600 font-semibold
-                       hover:bg-indigo-100 transition
-                       disabled:opacity-60 disabled:cursor-not-allowed"
+                       transition
+                       disabled:opacity-70 disabled:cursor-not-allowed
+                       hover:bg-indigo-100"
               >
-                {{ loading ? 'Processing…' : 'Upgrade Now' }}
+                <span v-if="loading">Processing…</span>
+                <span v-else>
+                  {{ isPremium ? 'Current Plan' : 'Upgrade Now' }}
+                </span>
               </button>
+
+              <!-- 🎁 GIFT (PREMIUM ONLY) -->
+              <div
+                v-if="isPremium"
+                @click="$emit('open-gift')"
+                class="mt-4 flex items-center justify-center gap-2
+                       text-sm text-indigo-200 cursor-pointer
+                       hover:text-white transition"
+              >
+                <span class="text-lg">🎁</span>
+                <span>Gift Premium to someone</span>
+              </div>
             </div>
           </div>
         </div>
@@ -149,84 +142,61 @@
   </div>
 </template>
 
-
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from "vue"
+import { ref, computed, onMounted, onBeforeUnmount } from "vue"
 import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/store/auth"
 
 const props = defineProps({
   modelValue: { type: Boolean, required: true },
 })
 
-const emit = defineEmits(["update:modelValue"])
+const emit = defineEmits(["update:modelValue", "open-gift"])
+
 const loading = ref(false)
+const { state } = useAuth()
+const isPremium = computed(() => state.isPremium === true)
 
 function close() {
   if (!loading.value) emit("update:modelValue", false)
 }
 
-// ===============================
-// 🔥 PAYMENT LOGIC (PRODUCTION)
-// ===============================
+// PAYMENT
 async function startPayment() {
   if (loading.value) return
   loading.value = true
 
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return alert("Please login first")
 
-    if (!user) {
-      alert("Silakan login terlebih dahulu")
-      return
-    }
-
-    // 🔥 KIRIM email + user_id
     const res = await fetch(
       `${import.meta.env.VITE_API_URL}/api/create-transaction`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: user.email,
-          user_id: user.id, // 🔥 KUNCI UTAMA
-        }),
+        body: JSON.stringify({ email: user.email, user_id: user.id }),
       }
     )
 
     const data = await res.json()
-    if (!data.token) {
-      alert("Gagal mendapatkan token pembayaran")
-      return
-    }
+    if (!data.token) return alert("Payment token failed")
 
-    // 🔥 SNAP HANYA UNTUK BAYAR
     window.snap.pay(data.token, {
       onSuccess: () => {
-        alert("Pembayaran berhasil 🎉")
+        alert("Payment successful 🎉")
         emit("update:modelValue", false)
-        // ❌ TIDAK ADA UPDATE DB DI SINI
       },
-      onPending: () => alert("⏳ Menunggu pembayaran"),
-      onError: () => alert("❌ Pembayaran gagal"),
-      onClose: () => console.log("Popup ditutup"),
+      onPending: () => alert("Waiting for payment"),
+      onError: () => alert("Payment failed"),
     })
-  } catch (err) {
-    console.error(err)
-    alert("Terjadi kesalahan")
   } finally {
     loading.value = false
   }
 }
 
 // ESC
-function handleKey(e) {
-  if (e.key === "Escape") close()
-}
-
+const handleKey = (e) => e.key === "Escape" && close()
 onMounted(() => window.addEventListener("keydown", handleKey))
-onBeforeUnmount(() =>
-  window.removeEventListener("keydown", handleKey)
-)
+onBeforeUnmount(() => window.removeEventListener("keydown", handleKey))
 </script>

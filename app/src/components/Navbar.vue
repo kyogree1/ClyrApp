@@ -82,38 +82,66 @@
       </nav>
     </div>
 
-    <!-- MODAL UPGRADE -->
-    <UpgradePremiumModal v-model="showUpgradeModal" />
+    <!-- MODALS -->
+    <UpgradePremiumModal
+      v-model="showUpgradeModal"
+      @open-gift="showGiftModal = true"
+    />
+
+    <GiftPremiumModal v-model="showGiftModal" />
+    <RedeemGiftModal v-model="showRedeemModal" />
+    
   </header>
 </template>
 
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount, watch } from "vue"
 import { useRouter, useRoute } from "vue-router"
-import { User, LayoutDashboard, MonitorCheck, BookOpen, Star, LogOut } from "lucide-vue-next"
+import {
+  User,
+  LayoutDashboard,
+  MonitorCheck,
+  BookOpen,
+  Star,
+  Gift,
+  LogOut,
+} from "lucide-vue-next"
 
 import Button from "@/components/Button.vue"
 import UpgradePremiumModal from "@/components/UpgradePremiumModal.vue"
+import GiftPremiumModal from "@/components/GiftPremiumModal.vue"
+import RedeemGiftModal from "@/components/RedeemGiftModal.vue"
+
 import { useAuth } from "@/store/auth"
 import { useUI } from "@/store/ui"
 
+/* ======================
+   CORE
+====================== */
 const router = useRouter()
 const route = useRoute()
 
-// ✅ useAuth SINGLETON
+// 🔥 SINGLETON AUTH (WAJIB SATU KALI)
 const auth = useAuth()
 const { state, signOut, refreshPremiumStatus } = auth
-
 const { startLoading, stopLoading } = useUI()
 
 const isLoggedIn = computed(() => !!state.user)
 const isPremium = computed(() => state.isPremium === true)
 
+/* ======================
+   UI STATE
+====================== */
 const dropdownOpen = ref(false)
-const showUpgradeModal = ref(false)
 const dropdownRoot = ref(null)
 
-// Public links
+const showUpgradeModal = ref(false)
+const showGiftModal = ref(false)
+const showRedeemModal = ref(false)
+
+/* ======================
+   PUBLIC NAV
+====================== */
 const baseLinks = [
   { path: "/", label: "Home" },
   { path: "/features", label: "Features" },
@@ -121,32 +149,43 @@ const baseLinks = [
   { path: "/contact", label: "Contact" },
 ]
 
-// Dropdown items
-const commonDropdownItems = [
-  { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-  { label: "Profile", path: "/profile", icon: User },
-]
-
-const premiumOnlyItems = [
-  { label: "Monitoring", path: "/monitoring", icon: MonitorCheck },
-  { label: "Journal", path: "/journal", icon: BookOpen },
-]
-
-const freeOnlyItems = [
-  { label: "Upgrade ke Premium", action: "upgrade", icon: Star },
-]
-
+/* ======================
+   DROPDOWN ITEMS
+====================== */
 const dropdownItems = computed(() => {
-  return isPremium.value
-    ? [...commonDropdownItems, ...premiumOnlyItems]
-    : [...commonDropdownItems, ...freeOnlyItems]
+  const items = [
+    { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { label: "Profile", path: "/profile", icon: User },
+  ]
+
+  if (isPremium.value) {
+    items.push(
+      { label: "Monitoring", path: "/monitoring", icon: MonitorCheck },
+      { label: "Journal", path: "/journal", icon: BookOpen },
+      { label: "Gift Premium", action: "gift", icon: Gift }
+    )
+  } else {
+    items.push(
+      { label: "Upgrade ke Premium", action: "upgrade", icon: Star },
+      { label: "Redeem Gift Code", action: "redeem", icon: Gift }
+    )
+  }
+
+  return items
 })
 
-// Navigation helpers
-const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" })
-const navigateTo = (path) => router.push(path).then(scrollToTop)
+/* ======================
+   NAV HELPERS
+====================== */
+const scrollToTop = () =>
+  window.scrollTo({ top: 0, behavior: "smooth" })
 
-// Dropdown logic
+const navigateTo = (path) =>
+  router.push(path).then(scrollToTop)
+
+/* ======================
+   DROPDOWN LOGIC
+====================== */
 const toggleDropdown = () => {
   dropdownOpen.value = !dropdownOpen.value
 }
@@ -159,34 +198,53 @@ const handleDropdown = (item) => {
     return
   }
 
+  if (item.action === "gift") {
+    showGiftModal.value = true
+    return
+  }
+
+  if (item.action === "redeem") {
+    showRedeemModal.value = true
+    return
+  }
+
   if (item.path) navigateTo(item.path)
 }
 
-// ✅ Outside click yang benar (hanya cek area dropdownRoot)
+/* ======================
+   OUTSIDE CLICK (FIX)
+====================== */
 const handleOutsideClick = (e) => {
   if (!dropdownOpen.value) return
   const root = dropdownRoot.value
-  if (root && !root.contains(e.target)) dropdownOpen.value = false
+  if (root && !root.contains(e.target)) {
+    dropdownOpen.value = false
+  }
 }
 
 onMounted(() => {
   document.addEventListener("click", handleOutsideClick)
 })
+
 onBeforeUnmount(() => {
   document.removeEventListener("click", handleOutsideClick)
 })
 
-// ✅ Setelah modal ditutup, refresh premium supaya menu langsung berubah
+/* ======================
+   SYNC PREMIUM AFTER MODAL
+====================== */
 watch(
-  () => showUpgradeModal.value,
-  async (open) => {
-    if (open === false && state.user) {
+  [() => showUpgradeModal.value, () => showRedeemModal.value],
+  async () => {
+    if (state.user) {
       await refreshPremiumStatus()
     }
   }
 )
 
-// Logout
+/* ======================
+   LOGOUT
+====================== */
 const logout = async () => {
   try {
     startLoading()
@@ -197,7 +255,9 @@ const logout = async () => {
   }
 }
 
-// DEBUG (hapus nanti)
+/* ======================
+   DEV DEBUG
+====================== */
 if (import.meta.env.DEV) {
   window.__auth = auth
 }

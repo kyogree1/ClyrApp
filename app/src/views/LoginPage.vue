@@ -38,15 +38,13 @@
         </div>
 
         <!-- RESET PASSWORD LINK -->
-        <div class="text-right">
-          <button
-            type="button"
-            @click="handleResetPassword"
-            class="text-sm text-indigo-600 hover:underline"
-          >
-            Forgot password?
-          </button>
-        </div>
+        <router-link
+          to="/forgot-password"
+          class="text-sm text-indigo-600 hover:underline"
+        >
+          Forgot password?
+        </router-link>
+
 
         <Button
           type="submit"
@@ -70,7 +68,6 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from '@/components/Button.vue'
-import { supabase } from '@/lib/supabase'
 import { useUI } from '@/store/ui'
 import { useAuth } from '@/store/auth'
 
@@ -82,40 +79,16 @@ const password = ref('')
 const { signIn } = useAuth()
 const { startLoading, stopLoading } = useUI()
 
-// LOGIN
 const handleSignIn = async () => {
   try {
     startLoading()
-
-    const result = await signIn(email.value, password.value)
-
-    console.log("HASIL LOGIN:", result)
-
+    await signIn(email.value, password.value)
     router.push('/dashboard')
-
   } catch (error) {
     alert(error.message)
   } finally {
     stopLoading()
   }
 }
-
-
-// RESET PASSWORD
-const handleResetPassword = async () => {
-  if (!email.value) {
-    alert("Please enter your email first.")
-    return
-  }
-
-  const { error } = await supabase.auth.resetPasswordForEmail(email.value, {
-    redirectTo: `${window.location.origin}/reset-password`
-  })
-
-  if (error) {
-    alert(error.message)
-  } else {
-    alert("A password reset link has been sent to your email.")
-  }
-}
 </script>
+
