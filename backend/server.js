@@ -266,6 +266,50 @@ app.get("/api/gift/my/:userId", async (req, res) => {
 })
 
 /* =========================================================
+   REDEEM GIFT CODE
+========================================================= */
+app.post("/api/gift/redeem", async (req, res) => {
+  const { user_id, code } = req.body
+
+  if (!user_id || !code) {
+    return res.status(400).json({ error: "user_id & code required" })
+  }
+
+  // ambil gift code
+  const { data: gift, error } = await supabaseAdmin
+    .from("gift_codes")
+    .select("*")
+    .eq("code", code)
+    .single()
+
+  if (error || !gift || !gift.is_active) {
+    return res.status(400).json({ error: "Invalid gift code" })
+  }
+
+  if (gift.used_count >= gift.max_uses) {
+    return res.status(400).json({ error: "Gift code exhausted" })
+  }
+
+  // aktifkan premium user
+  await supabaseAdmin
+    .from("profiles")
+    .update({ is_premium: true })
+    .eq("id", user_id)
+
+  // update penggunaan gift
+  await supabaseAdmin
+    .from("gift_codes")
+    .update({ used_count: gift.used_count + 1 })
+    .eq("id", gift.id)
+
+  res.json({
+    success: true,
+    message: "🎉 Gift redeemed successfully",
+  })
+})
+
+
+/* =========================================================
    404
 ========================================================= */
 app.use((_req, res) => {
