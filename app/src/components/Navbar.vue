@@ -1,8 +1,7 @@
 <template>
-  <header
-    class="bg-white border-b border-gray-200 px-6 py-4 shadow-sm sticky top-0 z-50"
-  >
+  <header class="bg-white border-b border-gray-200 px-6 py-4 shadow-sm sticky top-0 z-50">
     <div class="container mx-auto flex items-center justify-between">
+
       <!-- LOGO -->
       <div
         @click="navigateTo('/')"
@@ -11,161 +10,255 @@
         CLYR
       </div>
 
-      <!-- NAVIGATION -->
+      <!-- NAV -->
       <nav class="flex items-center gap-6">
-        <!-- Menu selalu tampil -->
+
+        <!-- Public links -->
         <RouterLink
           v-for="link in baseLinks"
           :key="link.path"
           :to="link.path"
           class="transition-colors"
           @click="scrollToTop"
-          :class="{
-            'text-indigo-600 font-semibold': route.path === link.path,
-            'text-gray-600 hover:text-indigo-600': route.path !== link.path
-          }"
+          :class="route.path === link.path
+            ? 'text-indigo-600 font-semibold'
+            : 'text-gray-600 hover:text-indigo-600'"
         >
           {{ link.label }}
         </RouterLink>
 
-        <!-- Avatar dropdown (hanya login) -->
-        <div v-if="isLoggedIn" class="relative">
+        <!-- USER DROPDOWN -->
+        <div v-if="isLoggedIn" class="relative" ref="dropdownRoot">
           <div
-            @click="toggleDropdown"
-            class="h-10 w-10 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 flex items-center justify-center text-white cursor-pointer ring-2 ring-indigo-100 hover:ring-indigo-300 transition-all"
+            @click.stop="toggleDropdown"
+            class="h-10 w-10 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600
+                   flex items-center justify-center text-white cursor-pointer
+                   ring-2 ring-indigo-100 hover:ring-indigo-300 transition-all"
           >
             <User class="h-5 w-5" />
           </div>
 
-          <!-- Dropdown -->
-        <div
-          v-if="dropdownOpen"
-          class="absolute right-0 mt-3 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50"
-        >
-          <div class="px-4 py-2 text-indigo-600 font-semibold border-b">
-            Menu Akun
+          <!-- DROPDOWN -->
+          <div
+            v-if="dropdownOpen"
+            class="absolute right-0 mt-3 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50"
+          >
+            <div class="px-4 py-2 text-indigo-600 font-semibold border-b">
+              Menu Akun
+            </div>
+
+            <button
+              v-for="item in dropdownItems"
+              :key="item.label"
+              @click="handleDropdown(item)"
+              class="flex items-center w-full px-4 py-2 text-gray-700 hover:bg-indigo-50 transition-all"
+            >
+              <component :is="item.icon" class="h-4 w-4 mr-2" />
+              {{ item.label }}
+            </button>
+
+            <div class="border-t my-1"></div>
+
+            <button
+              @click="logout"
+              class="flex items-center w-full px-4 py-2 text-red-600 hover:bg-red-50 transition-all"
+            >
+              <LogOut class="h-4 w-4 mr-2" />
+              Logout
+            </button>
           </div>
-
-          <button
-            v-for="item in dropdownItems"
-            :key="item.path"
-            @click="handleDropdown(item)"
-            class="flex items-center w-full px-4 py-2 text-gray-700 hover:bg-indigo-50 transition-all"
-          >
-            <component :is="item.icon" class="h-4 w-4 mr-2" />
-            {{ item.label }}
-          </button>
-
-          <div class="border-t my-1"></div>
-
-          <button
-            @click="logout"
-            class="flex items-center w-full px-4 py-2 text-red-600 hover:bg-red-50 transition-all"
-          >
-            <LogOut class="h-4 w-4 mr-2" /> Logout
-          </button>
         </div>
 
-        <!-- Tombol logout -->
-        </div>
-
-        <!-- Tombol login (guest) -->
+        <!-- GUEST -->
         <Button
           v-else
           @click="navigateTo('/login')"
-          class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6 py-2 rounded-lg shadow-md transition-all"
+          class="bg-gradient-to-r from-indigo-600 to-purple-600
+                 hover:from-indigo-700 hover:to-purple-700
+                 text-white px-6 py-2 rounded-lg shadow-md transition-all"
         >
           Login
         </Button>
       </nav>
     </div>
+
+    <!-- MODALS -->
+    <UpgradePremiumModal
+      v-model="showUpgradeModal"
+      @open-gift="showGiftModal = true"
+    />
+
+    <GiftPremiumModal v-model="showGiftModal" />
+    <RedeemGiftModal v-model="showRedeemModal" />
+    
   </header>
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter, useRoute, RouterLink } from 'vue-router'
-import Button from '@/components/Button.vue'
-import { User, LayoutDashboard, MonitorCheck, BookOpen, LogOut, Star } from 'lucide-vue-next'
-import { useAuth } from '@/store/auth'
-import { useUI } from '@/store/ui'
+import { computed, ref, onMounted, onBeforeUnmount, watch } from "vue"
+import { useRouter, useRoute } from "vue-router"
+import {
+  User,
+  LayoutDashboard,
+  MonitorCheck,
+  BookOpen,
+  Star,
+  Gift,
+  LogOut,
+} from "lucide-vue-next"
 
+import Button from "@/components/Button.vue"
+import UpgradePremiumModal from "@/components/UpgradePremiumModal.vue"
+import GiftPremiumModal from "@/components/GiftPremiumModal.vue"
+import RedeemGiftModal from "@/components/RedeemGiftModal.vue"
+
+import { useAuth } from "@/store/auth"
+import { useUI } from "@/store/ui"
+
+/* ======================
+   CORE
+====================== */
 const router = useRouter()
 const route = useRoute()
 
-const { state, signOut } = useAuth()
+// 🔥 SINGLETON AUTH (WAJIB SATU KALI)
+const auth = useAuth()
+const { state, signOut, refreshPremiumStatus } = auth
 const { startLoading, stopLoading } = useUI()
 
 const isLoggedIn = computed(() => !!state.user)
-const isPremium = computed(() => state.isPremium === true) // 🔥 flag premium
+const isPremium = computed(() => state.isPremium === true)
 
+/* ======================
+   UI STATE
+====================== */
 const dropdownOpen = ref(false)
+const dropdownRoot = ref(null)
 
+const showUpgradeModal = ref(false)
+const showGiftModal = ref(false)
+const showRedeemModal = ref(false)
+
+/* ======================
+   PUBLIC NAV
+====================== */
 const baseLinks = [
-  { path: '/', label: 'Home' },
-  { path: '/features', label: 'Features' },
-  { path: '/about', label: 'About' },
-  { path: '/contact', label: 'Contact' },
+  { path: "/", label: "Home" },
+  { path: "/features", label: "Features" },
+  { path: "/about", label: "About" },
+  { path: "/contact", label: "Contact" },
 ]
 
-// ⬇️ daftar menu untuk premium & gratis
-const premiumDropdownItems = [
-  { path: '/profile', label: 'Profile', icon: User },
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/monitoring', label: 'Monitoring', icon: MonitorCheck },
-  { path: '/journal', label: 'Journal', icon: BookOpen },
-]
+/* ======================
+   DROPDOWN ITEMS
+====================== */
+const dropdownItems = computed(() => {
+  const items = [
+    { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { label: "Profile", path: "/profile", icon: User },
+  ]
 
-const freeDropdownItems = [
-  { path: '/monitoring', label: 'Monitoring', icon: MonitorCheck },
-  { path: '/upgrade', label: 'Upgrade ke Premium', icon: Star },
-]
+  if (isPremium.value) {
+    items.push(
+      { label: "Monitoring", path: "/monitoring", icon: MonitorCheck },
+      { label: "Journal", path: "/journal", icon: BookOpen },
+      { label: "Gift Premium", action: "gift", icon: Gift }
+    )
+  } else {
+    items.push(
+      { label: "Upgrade ke Premium", action: "upgrade", icon: Star },
+      { label: "Redeem Gift Code", action: "redeem", icon: Gift }
+    )
+  }
 
-// ⬇️ dropdownItems sekarang dynamic
-const dropdownItems = computed(() =>
-  isPremium.value ? premiumDropdownItems : freeDropdownItems
-)
+  return items
+})
 
-// 🧭 Navigasi
-const navigateTo = (path) => {
-  router.push(path).then(() => scrollToTop())
-}
-const scrollToTop = () => {
-  window.scrollTo({ top: 0, behavior: 'smooth' })
-}
+/* ======================
+   NAV HELPERS
+====================== */
+const scrollToTop = () =>
+  window.scrollTo({ top: 0, behavior: "smooth" })
 
-// ⚙️ Dropdown control
-const toggleDropdown = (e) => {
-  e.stopPropagation()
+const navigateTo = (path) =>
+  router.push(path).then(scrollToTop)
+
+/* ======================
+   DROPDOWN LOGIC
+====================== */
+const toggleDropdown = () => {
   dropdownOpen.value = !dropdownOpen.value
 }
+
 const handleDropdown = (item) => {
   dropdownOpen.value = false
-  router.push(item.path).then(() => scrollToTop())
+
+  if (item.action === "upgrade") {
+    showUpgradeModal.value = true
+    return
+  }
+
+  if (item.action === "gift") {
+    showGiftModal.value = true
+    return
+  }
+
+  if (item.action === "redeem") {
+    showRedeemModal.value = true
+    return
+  }
+
+  if (item.path) navigateTo(item.path)
 }
+
+/* ======================
+   OUTSIDE CLICK (FIX)
+====================== */
 const handleOutsideClick = (e) => {
-  if (!e.target.closest('.relative')) dropdownOpen.value = false
+  if (!dropdownOpen.value) return
+  const root = dropdownRoot.value
+  if (root && !root.contains(e.target)) {
+    dropdownOpen.value = false
+  }
 }
 
 onMounted(() => {
-  document.addEventListener('click', handleOutsideClick)
+  document.addEventListener("click", handleOutsideClick)
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener('click', handleOutsideClick)
+  document.removeEventListener("click", handleOutsideClick)
 })
 
-// 🚪 Logout Supabase
+/* ======================
+   SYNC PREMIUM AFTER MODAL
+====================== */
+watch(
+  [() => showUpgradeModal.value, () => showRedeemModal.value],
+  async () => {
+    if (state.user) {
+      await refreshPremiumStatus()
+    }
+  }
+)
+
+/* ======================
+   LOGOUT
+====================== */
 const logout = async () => {
   try {
     startLoading()
     await signOut()
-    await new Promise((r) => setTimeout(r, 50))
-    await router.push('/')
-  } catch (e) {
-    console.error('Logout error:', e)
+    await router.push("/")
   } finally {
     stopLoading()
   }
+}
+
+/* ======================
+   DEV DEBUG
+====================== */
+if (import.meta.env.DEV) {
+  window.__auth = auth
 }
 </script>
