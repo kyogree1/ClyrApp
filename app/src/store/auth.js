@@ -1,8 +1,6 @@
 import { reactive } from "vue"
 import { supabase } from "@/lib/supabase"
 
-const EXTENSION_ID = "hkkcfiigejjahmkbhmhbflaedcgieefi"
-
 // ===============================
 // GLOBAL STATE
 // ===============================
@@ -10,33 +8,31 @@ const state = reactive({
   user: null,
   ready: false,
   isPremium: false,
-  premiumLoading: false, // ✅ TAMBAHAN
+  premiumLoading: false,
 })
 
 // cegah listener dobel
 let initialized = false
 
 // ===============================
-// EXTENSION SYNC (AMAN)
+// 🔥 EXTENSION SYNC (FINAL - VIA content script)
 // ===============================
 let lastSync = 0
 function syncUserToExtension() {
+  if (!state.user) return
+
   const now = Date.now()
   if (now - lastSync < 1000) return
   lastSync = now
 
-  if (!state.user) return
-  if (typeof chrome === "undefined" || !chrome.runtime) return
-
-  try {
-    chrome.runtime.sendMessage(
-      EXTENSION_ID,
-      { type: "SET_USER", userId: state.user.id },
-      () => {}
-    )
-  } catch {
-    // silent
-  }
+  // 🔥 KIRIM KE CONTENT SCRIPT
+  window.postMessage(
+    {
+      type: "CLYR_SET_USER",
+      userId: state.user.id,
+    },
+    "*"
+  )
 }
 
 // ===============================
@@ -79,9 +75,17 @@ export function useAuth() {
 
       if (state.user) {
         refreshPremiumStatus()
-        syncUserToExtension()
+
+        // 🔥 DELAY KECIL BIAR PAGE STABIL
+        setTimeout(syncUserToExtension, 300)
       } else {
         state.isPremium = false
+
+        // 🔥 CLEAR USER DI EXTENSION
+        window.postMessage(
+          { type: "CLYR_SET_USER", userId: null },
+          "*"
+        )
       }
     })
   }
@@ -103,7 +107,7 @@ export function useAuth() {
 
     if (state.user) {
       refreshPremiumStatus()
-      syncUserToExtension()
+      setTimeout(syncUserToExtension, 300)
     }
   }
 
@@ -119,9 +123,9 @@ export function useAuth() {
 
     state.user = data.user
     refreshPremiumStatus()
-    syncUserToExtension()
+    setTimeout(syncUserToExtension, 300)
 
-    return data.user   // ✅ TAMBAHKAN INI
+    return data.user
   }
 
   // ===============================
@@ -129,12 +133,19 @@ export function useAuth() {
   // ===============================
   async function signOut() {
     await supabase.auth.signOut()
+
     state.user = null
     state.isPremium = false
+
+    // 🔥 CLEAR DI EXTENSION
+    window.postMessage(
+      { type: "CLYR_SET_USER", userId: null },
+      "*"
+    )
   }
 
   // ===============================
-  // MANUAL FORCE REFRESH (OPSIONAL)
+  // MANUAL FORCE REFRESH
   // ===============================
   async function forceRefreshPremium() {
     await refreshPremiumStatus()
@@ -145,7 +156,6 @@ export function useAuth() {
     init,
     signIn,
     signOut,
-    // ✅ TAMBAHAN API
-    refreshPremiumStatus
+    refreshPremiumStatus,
   }
 }
