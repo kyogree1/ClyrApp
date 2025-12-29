@@ -2,21 +2,26 @@ const USAGE_KEY = "usage";
 const STATE_KEY = "currentState";
 
 let usage = {};
-let state = { domain:null, start:null };
+let state = { domain: null, start: null };
+let ticker = null; // ⛔ kontrol interval
 
 const $ = (id) => document.getElementById(id);
-const pad2 = (n) => n.toString().padStart(2,"0");
-const fmt = (sec) => `${Math.floor(sec/60)} m ${pad2(sec%60)} s`;
+const pad2 = (n) => n.toString().padStart(2, "0");
+const fmt = (sec) => `${Math.floor(sec / 60)} m ${pad2(sec % 60)} s`;
 
-// Ambil data mentah dari storage
-async function loadAll(){
+/* ===============================
+   LOAD DATA
+=============================== */
+async function loadAll() {
   const d = await chrome.storage.local.get([USAGE_KEY, STATE_KEY]);
   usage = d[USAGE_KEY] || {};
-  state = d[STATE_KEY] || { domain:null, start:null };
+  state = d[STATE_KEY] || { domain: null, start: null };
 }
 
-// Hitung snapshot untuk tampilan (usage + delta realtime)
-function snapshot(){
+/* ===============================
+   SNAPSHOT (UI ONLY)
+=============================== */
+function snapshot() {
   const snap = {};
 
   // clone usage
@@ -31,7 +36,7 @@ function snapshot(){
     }
   }
 
-  // Tambah waktu realtime untuk domain aktif (UI only)
+  // realtime delta (UI only)
   if (state.domain && state.start) {
     const delta = Math.floor((Date.now() - state.start) / 1000);
     if (delta > 0) {
@@ -43,7 +48,10 @@ function snapshot(){
   return snap;
 }
 
-function render(){
+/* ===============================
+   RENDER
+=============================== */
+function render() {
   const container = $("siteList");
   const snap = snapshot();
   const sortBy = $("sortBy").value;
@@ -58,30 +66,27 @@ function render(){
 
   $("emptyHint").style.display = "none";
 
-  const totalSec = domains.reduce((s,v)=>s+v[1].seconds, 0);
+  const totalSec = domains.reduce((s, v) => s + v[1].seconds, 0);
   $("totalTime").textContent = fmt(totalSec);
 
-  // Sorting
-  if (sortBy === "time") domains.sort((a,b)=>b[1].seconds - a[1].seconds);
-  else if (sortBy === "sessions") domains.sort((a,b)=>b[1].sessions - a[1].sessions);
-  else if (sortBy === "name") domains.sort((a,b)=>a[0].localeCompare(b[0]));
+  // sorting
+  if (sortBy === "time") domains.sort((a, b) => b[1].seconds - a[1].seconds);
+  else if (sortBy === "sessions") domains.sort((a, b) => b[1].sessions - a[1].sessions);
+  else if (sortBy === "name") domains.sort((a, b) => a[0].localeCompare(b[0]));
 
   const safeTotal = totalSec || 1;
 
-  container.innerHTML = domains.map(([domain,v])=>{
+  container.innerHTML = domains.map(([domain, v]) => {
     const pct = (v.seconds / safeTotal) * 100;
-
     return `
       <div class="site-item">
         <div class="site-header">
           <span class="site-name">${domain}</span>
           <span class="site-time">${fmt(v.seconds)}</span>
         </div>
-
         <div class="session-count">
           ${v.sessions} sessions • ${pct.toFixed(1)}%
         </div>
-
         <div class="progress-bar">
           <div class="progress-fill" style="width:${pct}%;"></div>
         </div>
@@ -90,39 +95,65 @@ function render(){
   }).join("");
 }
 
-// Update realtime tiap 1 detik (untuk UI, bukan nambah waktu ke storage)
-setInterval(async () => {
-  await loadAll();
-  render();
-}, 1000);
+/* ===============================
+   REALTIME TICKER (UI ONLY)
+=============================== */
+function startTicker() {
+  stopTicker();
+  ticker = setInterval(async () => {
+    await loadAll();
+    render();
+  }, 1000);
+}
 
-// Storage berubah dari background → refresh UI
-chrome.storage.onChanged.addListener((chg,area)=>{
-  if(area !== "local") return;
+function stopTicker() {
+  if (ticker) {
+    clearInterval(ticker);
+    ticker = null;
+  }
+}
 
-  if(chg[USAGE_KEY]) usage = chg[USAGE_KEY].newValue || {};
-  if(chg[STATE_KEY]) state = chg[STATE_KEY].newValue || state;
+/* ===============================
+   STORAGE LISTENER
+=============================== */
+chrome.storage.onChanged.addListener((chg, area) => {
+  if (area !== "local") return;
+
+  if (chg[USAGE_KEY]) usage = chg[USAGE_KEY].newValue || {};
+  if (chg[STATE_KEY]) state = chg[STATE_KEY].newValue || { domain: null, start: null };
 
   render();
 });
 
-document.addEventListener("DOMContentLoaded", async ()=>{
+/* ===============================
+   INIT
+=============================== */
+document.addEventListener("DOMContentLoaded", async () => {
   $("sortBy").addEventListener("change", render);
+
   await loadAll();
   render();
+  startTicker();
 
+  /* ===============================
+     RESET BUTTON (FINAL FIX)
+  =============================== */
   $("resetBtn").addEventListener("click", () => {
     if (!confirm("Reset all website usage data?")) return;
 
-    chrome.runtime.sendMessage(
-      { type: "RESET_USAGE" },
-      (res) => {
-        console.log("Reset response:", res);
-        usage = {};
-        state = { domain: null, start: null };
-        render();
-        alert("Usage data has been reset.");
-      }
-    );
+    // 🔥 KIRIM RESET (TANPA CALLBACK)
+    chrome.runtime.sendMessage({ type: "RESET_USAGE" });
+
+    // 🔥 BERSIHKAN STATE POPUP
+    usage = {};
+    state = { domain: null, start: null };
+
+    // 🔥 RENDER LANGSUNG
+    render();
+
+    // 🔥 RELOAD POPUP BIAR BENAR-BENAR CLEAN
+    setTimeout(() => {
+      window.location.reload();
+    }, 100);
   });
 });

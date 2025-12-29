@@ -1,21 +1,60 @@
-console.log("BACKGROUND STARTED (ACTIVE)");
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  console.log("[EXT] MESSAGE RECEIVED:", msg);
+
+  if (msg?.type === "SET_USER") {
+    if (!msg.userId) {
+      chrome.storage.local.remove("userId");
+      return;
+    }
+    chrome.storage.local.set({ userId: msg.userId });
+    return;
+  }
+
+  // ✅ INI YANG KURANG SELAMA INI
+  if (msg?.type === "RESET_USAGE") {
+    console.log("🔥 RESET_USAGE RECEIVED");
+
+    // STOP SESSION
+    current = { domain: null, start: null };
+
+    // CLEAR STORAGE
+    chrome.storage.local.set({
+      usage: {},
+      currentState: { domain: null, start: null },
+    });
+
+    // RESET CACHE
+    cachedToday = 0;
+    cachedLimit = 0;
+    lastLimitCheck = 0;
+    lastUsageCheck = 0;
+
+    console.log("🔥 RESET DONE (BACKGROUND)");
+    return;
+  }
+});
 
 /* ============================================================
    CONFIG
 ============================================================ */
 
 const SUPABASE_URL = "https://aressqmsufpehhdcdujj.supabase.co";
-const SUPABASE_ANON_KEY = "<YOUR_KEY_HERE>";
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFyZXNzcW1zdWZwZWhoZGNkdWpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM1NDg1MzEsImV4cCI6MjA3OTEyNDUzMX0.1rgsHeKmYArp4kqS7fDv3Zxj4qO81SDwKbzaxqyIkjw";
 
 const USAGE_KEY = "usage";
 const STATE_KEY = "currentState";
 const USER_KEY = "userId";
 
 const NEGATIVE_DOMAINS = [
-  "pornhub.com", "xvideos.com", "xnxx.com",
-  "redtube.com", "youporn.com",
-  "twitter.com", "reddit.com",
-  "if.itk.ac.id"
+  "pornhub.com",
+  "xvideos.com",
+  "xnxx.com",
+  "redtube.com",
+  "youporn.com",
+  "twitter.com",
+  "reddit.com",
+  "if.itk.ac.id",
 ];
 
 /* ============================================================
@@ -24,10 +63,15 @@ const NEGATIVE_DOMAINS = [
 
 let current = { domain: null, start: null };
 
-/* Cache Supabase calls */
+// Cache Supabase calls (separate timers)
 let cachedLimit = 0;
 let cachedToday = 0;
-let lastCheck = 0;
+let lastLimitCheck = 0;
+let lastUsageCheck = 0;
+
+// Prevent race / double events
+let inFlight = Promise.resolve();
+let pendingDomain = null;
 
 /* ============================================================
    HELPERS
@@ -43,6 +87,41 @@ function getDomain(url) {
   }
 }
 
+// RPC response sometimes: number, object, or array.
+// Normalize to a number safely.
+async function readJsonSafe(res) {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+function toNumber(val) {
+  // Examples:
+  // - 120
+  // - { value: 120 }
+  // - [{ value: 120 }] or [{ sum: 120 }] etc
+  if (val == null) return 0;
+  if (typeof val === "number") return val;
+  if (typeof val === "string") {
+    const n = Number(val);
+    return Number.isFinite(n) ? n : 0;
+  }
+  if (Array.isArray(val)) {
+    if (val.length === 0) return 0;
+    return toNumber(val[0]);
+  }
+  if (typeof val === "object") {
+    // common keys
+    const keys = ["value", "limit", "usage", "sum", "total", "result"];
+    for (const k of keys) {
+      if (k in val) return toNumber(val[k]);
+    }
+  }
+  return 0;
+}
+
 async function loadUsage() {
   const data = await chrome.storage.local.get(USAGE_KEY);
   return data[USAGE_KEY] || {};
@@ -56,55 +135,77 @@ async function saveState() {
   return chrome.storage.local.set({ [STATE_KEY]: current });
 }
 
+async function resetStateAndUsage() {
+  console.log("🔥 RESET EXTENSION");
+
+  // 1️⃣ STOP SESSION AKTIF
+  current.domain = null;
+  current.start = null;
+
+  // 2️⃣ CLEAR STORAGE
+  await chrome.storage.local.set({
+    usage: {},
+    currentState: { domain: null, start: null },
+  });
+
+  // 3️⃣ RESET CACHE (PENTING)
+  cachedToday = 0;
+  cachedLimit = 0;
+  lastLimitCheck = 0;
+  lastUsageCheck = 0;
+
+  console.log("🔥 RESET DONE");
+}
+
 /* ============================================================
    SUPABASE FUNCTIONS (CACHED)
 ============================================================ */
 
 async function getLimit(userId) {
   const now = Date.now();
-  if (now - lastCheck < 8000) return cachedLimit; // 8s cache
+  if (now - lastLimitCheck < 8000) return cachedLimit;
 
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_today_limit`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       },
-      body: JSON.stringify({ uid: userId })
+      body: JSON.stringify({ uid: userId }),
     });
 
-    cachedLimit = await res.json();
-    lastCheck = now;
-    return cachedLimit ?? 0;
-
+    const json = await readJsonSafe(res);
+    cachedLimit = toNumber(json);
+    lastLimitCheck = now;
+    return cachedLimit;
   } catch {
-    return cachedLimit ?? 0;
+    return cachedLimit;
   }
 }
 
 async function getTodayUsage(userId) {
   const now = Date.now();
-  if (now - lastCheck < 8000) return cachedToday;
+  if (now - lastUsageCheck < 8000) return cachedToday;
 
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_today_usage`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       },
-      body: JSON.stringify({ uid: userId })
+      body: JSON.stringify({ uid: userId }),
     });
 
-    cachedToday = await res.json();
-    lastCheck = now;
-    return cachedToday ?? 0;
-
+    const json = await readJsonSafe(res);
+    cachedToday = toNumber(json);
+    lastUsageCheck = now;
+    return cachedToday;
   } catch {
-    return cachedToday ?? 0;
+    return cachedToday;
   }
 }
 
@@ -117,6 +218,8 @@ async function sendToSupabase(domain, seconds) {
   if (!userId) return;
 
   if (!domain || seconds <= 0) return;
+
+  // keep your original behavior: only log negative domains
   if (!NEGATIVE_DOMAINS.includes(domain)) return;
 
   console.log(`➡️ SEND LOG: ${domain} = ${seconds}s`);
@@ -126,8 +229,9 @@ async function sendToSupabase(domain, seconds) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Prefer: "return=minimal",
       },
       body: JSON.stringify({
         user_id: userId,
@@ -144,19 +248,20 @@ async function sendToSupabase(domain, seconds) {
    MAIN TRACKER
 ============================================================ */
 
-async function setActiveDomain(newDomain) {
+async function applyActiveDomain(newDomain) {
   const now = Date.now();
   const oldDomain = current.domain;
   const oldStart = current.start;
 
   const { userId } = await chrome.storage.local.get(USER_KEY);
 
-  // Early stop if limit reached
+  // Early stop if limit reached (safe rules)
   if (userId) {
     const today = await getTodayUsage(userId);
     const limit = await getLimit(userId);
 
-    if (today >= limit) {
+    // IMPORTANT: if limit is 0 / null -> treat as "no limit set" (do not stop tracking)
+    if (limit > 0 && today >= limit) {
       console.warn("⛔ LIMIT REACHED — STOP TRACKING");
 
       // Save last session before stopping
@@ -185,7 +290,7 @@ async function setActiveDomain(newDomain) {
 
       await saveUsage(usage);
 
-      if (elapsed >= 5 && NEGATIVE_DOMAINS.includes(oldDomain)) {
+      if (elapsed >= 5) {
         await sendToSupabase(oldDomain, elapsed);
       }
     }
@@ -197,55 +302,51 @@ async function setActiveDomain(newDomain) {
   await saveState();
 }
 
+// Debounced queue to avoid race conditions from multiple listeners
+function setActiveDomain(newDomain) {
+  pendingDomain = newDomain;
+
+  // chain tasks; only last pendingDomain will be applied when the chain runs
+  inFlight = inFlight
+    .catch(() => {}) // swallow previous errors
+    .then(async () => {
+      const dom = pendingDomain;
+      pendingDomain = null;
+
+      // if nothing pending, do nothing
+      if (dom === undefined) return;
+
+      await applyActiveDomain(dom);
+    });
+
+  return inFlight;
+}
+
 /* ============================================================
    EVENTS
 ============================================================ */
 
-chrome.tabs.onActivated.addListener(async info => {
+chrome.tabs.onActivated.addListener(async (info) => {
   const tab = await chrome.tabs.get(info.tabId).catch(() => null);
   await setActiveDomain(tab ? getDomain(tab.url) : null);
 });
 
-chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
-  if (tab.active && change.url) {
+chrome.tabs.onUpdated.addListener(async (_tabId, change, tab) => {
+  // only when active tab changes url
+  if (tab?.active && change?.url) {
     await setActiveDomain(getDomain(change.url));
   }
 });
 
-chrome.windows.onFocusChanged.addListener(async windowId => {
+chrome.windows.onFocusChanged.addListener(async (windowId) => {
   if (windowId === chrome.windows.WINDOW_ID_NONE) {
     await setActiveDomain(null);
     return;
   }
+
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   await setActiveDomain(tab ? getDomain(tab.url) : null);
 });
-
-/* ============================================================
-   AUTO-BLOCKER (MAIN FRAME ONLY)
-============================================================ */
-
-chrome.webRequest.onBeforeRequest.addListener(
-  async details => {
-    const domain = getDomain(details.url);
-    if (!NEGATIVE_DOMAINS.includes(domain)) return {};
-
-    const { userId } = await chrome.storage.local.get(USER_KEY);
-    if (!userId) return {};
-
-    const today = await getTodayUsage(userId);
-    const limit = await getLimit(userId);
-
-    if (today >= limit) {
-      console.warn("🚫 BLOCKED:", domain);
-      return { redirectUrl: chrome.runtime.getURL("blocked  .html") };
-    }
-
-    return {};
-  },
-  { urls: ["<all_urls>"], types: ["main_frame"] },
-  ["blocking"]
-);
 
 /* ============================================================
    INIT
@@ -259,27 +360,6 @@ async function init() {
 chrome.runtime.onInstalled.addListener(init);
 chrome.runtime.onStartup.addListener(init);
 
-/* ============================================================
-   MESSAGES
-============================================================ */
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.type === "SET_USER") {
-    chrome.storage.local.set({ userId: msg.userId }, () => {
-      console.log("[EXT] USER SET:", msg.userId);
-      sendResponse({ ok: true });
-    });
-    return true;
-  }
-
-  if (msg.type === "RESET_USAGE") {
-    chrome.storage.local.set({ [USAGE_KEY]: {}, [STATE_KEY]: { domain: null, start: null }}, () => {
-      current = { domain: null, start: null };
-      console.log("🔥 Usage reset");
-      sendResponse({ ok: true });
-    });
-    return true;
-  }
-});
 
 /* END */

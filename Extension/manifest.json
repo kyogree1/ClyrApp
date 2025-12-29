@@ -1,43 +1,37 @@
-  {
-    "manifest_version": 3,
-    "name": "Clyr APP",
-    "version": "1.0",
+{
+  "manifest_version": 3,
+  "name": "Clyr APP",
+  "version": "1.0",
 
-    "permissions": [
+  "permissions": [
     "tabs",
     "storage",
     "activeTab",
     "alarms",
-    "webRequest",
-    "webRequestBlocking",
     "notifications"
   ],
 
-    "host_permissions": [
-      "<all_urls>",
-      "https://*.supabase.co/*"
-    ],
+  "host_permissions": [
+    "<all_urls>",
+    "https://*.supabase.co/*"
+  ],
 
-    "action": {
-      "default_popup": "dashboard.html"
-    },
+  "background": {
+    "service_worker": "background.js"
+  },
 
-    "background": {
-      "service_worker": "background.js"
-    },
+  "action": {
+    "default_popup": "dashboard.html"
+  },
 
-    "externally_connectable": {
+  "content_scripts": [
+    {
       "matches": [
         "http://localhost:5173/*",
-        "https://localhost:5173/*",
-        "https://*.supabase.co/*"
-      ]
-    },
-
-    "web_accessible_resources": [
-      {
-        "resources": ["blocked.hmtl", "assets/blocklisttest.txt"],
-        "matches": ["<all_urls>"]
-      }
-    ]
-  }
+        "http://127.0.0.1:5173/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}
